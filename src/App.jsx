@@ -49,16 +49,7 @@ function App() {
     : roomPlayers[game?.currentPlayer]?.name ?? game?.players[game?.currentPlayer]?.name ?? 'Nächster Spieler'
   const isPlayable = game?.currentPlayer === 0 && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
 
-  const connectRoom = (mode = roomMode, requestedCode = joinCode) => {
-    if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
-    else socketRef.current?.close()
-    const configuredSocketUrl = import.meta.env.VITE_WS_URL
-    if (!configuredSocketUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      connectOnlineRoom(mode, requestedCode)
-      return
-    }
-
-    const connectOnlineRoom = async (mode, requestedCode) => {
+  const connectOnlineRoom = async (mode, requestedCode) => {
       setIsConnecting(true)
       setConnection('connecting')
       setConnectionMessage('')
@@ -85,7 +76,17 @@ function App() {
     } finally {
         setIsConnecting(false)
       }
+  }
+
+  const connectRoom = (mode = roomMode, requestedCode = joinCode) => {
+    if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
+    else socketRef.current?.close()
+    const configuredSocketUrl = import.meta.env.VITE_WS_URL
+    if (!configuredSocketUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    connectOnlineRoom(mode, requestedCode)
+    return
     }
+
     const socketUrl = configuredSocketUrl
       ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:3001`
     const socket = new WebSocket(socketUrl)
