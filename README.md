@@ -43,7 +43,7 @@ Das Frontend kann direkt aus diesem GitHub-Repository auf Vercel importiert werd
 2. `tim2024git/ShitHad` importieren.
 3. Framework **Vite** auswählen und deployen.
 
-Vercel hostet jetzt auch die Raum-API unter `/api/rooms`. Für den gemeinsamen Speicher muss im Vercel-Projekt eine Redis-Integration aus dem Vercel Marketplace verbunden werden. Dadurch werden automatisch die Redis-Umgebungsvariablen gesetzt. Danach neu deployen. Auf Vercel funktionieren **Raum erstellen** und **Raum betreten** direkt über den Vercel-Link; die Teilnehmer werden regelmäßig aktualisiert.
+Vercel hostet jetzt auch die Raum-API unter `/api/rooms`. Für den gemeinsamen Speicher wird Neon PostgreSQL verwendet. Im Vercel-Projekt muss die Neon-Verbindungszeichenfolge als geheime Umgebungsvariable `DATABASE_URL` gesetzt werden. Die Tabelle `shithad_rooms` wird beim ersten API-Aufruf automatisch angelegt. Danach neu deployen. Auf Vercel funktionieren **Raum erstellen** und **Raum betreten** direkt über den Vercel-Link; die Teilnehmer werden regelmäßig aktualisiert.
 
 Lokal verbindet sich die Anwendung weiterhin automatisch mit dem WebSocket-Server auf Port `3001`.
 
