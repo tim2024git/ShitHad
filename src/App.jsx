@@ -41,6 +41,7 @@ function App() {
   const [connectionMessage, setConnectionMessage] = useState('')
   const socketRef = useRef(null)
   const [roomMode, setRoomMode] = useState('join')
+  const [isConnecting, setIsConnecting] = useState(false)
   const player = game?.players[0]
   const topCard = game ? effectiveTop(game.discardPile) : null
   const currentTurnName = game?.currentPlayer === 0
@@ -58,6 +59,7 @@ function App() {
     }
 
     const connectOnlineRoom = async (mode, requestedCode) => {
+      setIsConnecting(true)
       setConnection('connecting')
       setConnectionMessage('')
       try {
@@ -80,6 +82,8 @@ function App() {
       } catch (error) {
         setConnection('offline')
         setConnectionMessage(error.message)
+    } finally {
+        setIsConnecting(false)
       }
     }
     const socketUrl = configuredSocketUrl
@@ -169,7 +173,7 @@ function App() {
           <div className="start-form">
             <label>Dein Name<input value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="z. B. Alex" maxLength={20} /></label>
             <label>Raumcode<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="z. B. SH7HAD" maxLength={8} /></label>
-            <div className="start-actions"><button className="primary-action" onClick={() => connectRoom('join')}>Raum betreten</button><button className="secondary-action" onClick={createRoom}>Raum erstellen</button></div>
+            <div className="start-actions"><button className="primary-action" disabled={isConnecting} onClick={() => connectRoom('join')}>{isConnecting ? 'Verbinde …' : 'Raum betreten'}</button><button className="secondary-action" disabled={isConnecting} onClick={createRoom}>{isConnecting ? 'Bitte warten …' : 'Raum erstellen'}</button></div>
           </div>
           {connectionMessage && <p className="connection-error">{connectionMessage}</p>}
           <span className="start-note">Gleicher Raum · bis zu 4 Spieler</span>

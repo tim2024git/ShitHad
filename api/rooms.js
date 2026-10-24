@@ -1,6 +1,7 @@
 import { Redis } from '@upstash/redis'
 
-const redis = Redis.fromEnv()
+const redisConfigured = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+const redis = redisConfigured ? Redis.fromEnv() : null
 
 const keyFor = (code) => `shithad:room:${code}`
 const codeOf = (value) => String(value ?? '').trim().toUpperCase().slice(0, 8)
@@ -12,6 +13,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 
 export async function POST(request) {
   try {
+    if (!redis) return json({ message: 'Der Online-Raumserver ist noch nicht eingerichtet. Verbinde zuerst eine Upstash-Redis-Datenbank mit dem Vercel-Projekt.' }, 503)
     const payload = await request.json()
     const name = nameOf(payload.name)
     let code = codeOf(payload.roomCode)
@@ -37,6 +39,7 @@ export async function GET(request) {
   const code = codeOf(new URL(request.url).searchParams.get('roomCode'))
   if (!code) return json({ message: 'Raumcode fehlt.' }, 400)
   try {
+    if (!redis) return json({ message: 'Der Online-Raumserver ist noch nicht eingerichtet.' }, 503)
     const room = await redis.get(keyFor(code))
     return room ? json({ roomCode: code, players: room.players }) : json({ message: 'Raum nicht gefunden.' }, 404)
   } catch {
