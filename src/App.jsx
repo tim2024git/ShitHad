@@ -40,6 +40,7 @@ function App() {
   const [roomPlayers, setRoomPlayers] = useState([])
   const [connectionMessage, setConnectionMessage] = useState('')
   const socketRef = useRef(null)
+  const [roomMode, setRoomMode] = useState('join')
   const player = game?.players[0]
   const topCard = game ? effectiveTop(game.discardPile) : null
   const currentTurnName = game?.currentPlayer === 0
@@ -47,15 +48,25 @@ function App() {
     : roomPlayers[game?.currentPlayer]?.name ?? game?.players[game?.currentPlayer]?.name ?? 'Nächster Spieler'
   const isPlayable = game?.currentPlayer === 0 && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
 
-  const joinRoom = () => {
+  const connectRoom = (mode = roomMode, requestedCode = joinCode) => {
     socketRef.current?.close()
-    const socketUrl = import.meta.env.VITE_WS_URL
+    const configuredSocketUrl = import.meta.env.VITE_WS_URL
+    if (!configuredSocketUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      setConnection('offline')
+      setConnectionMessage('Online-Räume sind noch nicht verbunden. Hinterlege in Vercel VITE_WS_URL für den Spielserver.')
+      return
+    }
+    const socketUrl = configuredSocketUrl
       ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:3001`
     const socket = new WebSocket(socketUrl)
     socketRef.current = socket
     setConnection('connecting')
     setConnectionMessage('')
-    socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'room:join', roomCode: joinCode, name: playerName })))
+    socket.addEventListener('open', () => socket.send(JSON.stringify({
+      type: mode === 'create' ? 'room:create' : 'room:join',
+      roomCode: requestedCode,
+      name: playerName,
+    })))
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data)
       if (message.type === 'room:joined') {
@@ -71,7 +82,7 @@ function App() {
     })
     socket.addEventListener('error', () => {
       setConnection('offline')
-      setConnectionMessage('Server nicht erreichbar. Starte npm run dev auf dem Host.')
+      setConnectionMessage('Spielserver nicht erreichbar. Prüfe VITE_WS_URL in Vercel oder starte lokal npm run dev.')
     })
   }
 
@@ -86,6 +97,13 @@ function App() {
       setGame(dealGame(Math.max(3, Math.min(4, roomPlayers.length || 4))))
       setPhase('game')
     }, 1800)
+  }
+
+  const createRoom = () => {
+    const generatedCode = `SH${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+    setJoinCode(generatedCode)
+    setRoomMode('create')
+    connectRoom('create', generatedCode)
   }
 
   const playCard = () => {
@@ -126,7 +144,7 @@ function App() {
           <div className="start-form">
             <label>Dein Name<input value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="z. B. Alex" maxLength={20} /></label>
             <label>Raumcode<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="z. B. SH7HAD" maxLength={8} /></label>
-            <button className="primary-action" onClick={joinRoom}>Raum betreten</button>
+            <div className="start-actions"><button className="primary-action" onClick={() => connectRoom('join')}>Raum betreten</button><button className="secondary-action" onClick={createRoom}>Raum erstellen</button></div>
           </div>
           {connectionMessage && <p className="connection-error">{connectionMessage}</p>}
           <span className="start-note">Gleicher Raum · bis zu 4 Spieler</span>

@@ -35,7 +35,7 @@ webSocketServer.on('connection', (socket) => {
       return
     }
 
-    if (message.type !== 'room:join' || typeof message.roomCode !== 'string' || typeof message.name !== 'string') {
+    if (!['room:join', 'room:create'].includes(message.type) || typeof message.roomCode !== 'string' || typeof message.name !== 'string') {
       socket.send(JSON.stringify({ type: 'error', message: 'Raumcode und Name werden benötigt.' }))
       return
     }
@@ -44,6 +44,11 @@ webSocketServer.on('connection', (socket) => {
     const name = message.name.trim().slice(0, 20)
     if (!roomCode || !name) {
       socket.send(JSON.stringify({ type: 'error', message: 'Bitte Raumcode und Namen eingeben.' }))
+      return
+    }
+
+    if (message.type === 'room:create' && rooms.has(roomCode)) {
+      socket.send(JSON.stringify({ type: 'error', message: 'Dieser Raumcode wird bereits verwendet.' }))
       return
     }
 

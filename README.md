@@ -45,7 +45,7 @@ Das Frontend kann direkt aus diesem GitHub-Repository auf Vercel importiert werd
 
 Vercel hostet damit die Oberfläche. Der aktuelle WebSocket-Server in `server.js` braucht weiterhin einen laufenden Node-Host (zum Beispiel Railway, Render oder einen eigenen Server). Nach dem Deployment muss in Vercel die Umgebungsvariable `VITE_WS_URL` auf die sichere WebSocket-Adresse dieses Servers gesetzt werden, zum Beispiel `wss://shithad-server.example.com`. Danach neu deployen.
 
-Nur das Vercel-Frontend ohne `VITE_WS_URL` ist sichtbar, kann aber keine echten Online-Räume synchronisieren.
+Ohne `VITE_WS_URL` zeigt die Startseite auf einer Vercel-Domain bewusst eine klare Konfigurationsmeldung statt eines irreführenden „Server nicht erreichbar“. Lokal verbindet sich die Anwendung automatisch mit Port `3001`. Räume können über **Raum erstellen** neu erzeugt oder über **Raum betreten** per Code geöffnet werden.
 
 ## Nächste Ausbaustufe
 
