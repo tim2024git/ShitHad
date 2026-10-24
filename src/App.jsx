@@ -29,23 +29,23 @@ function Avatar({ player, size = '' }) {
 }
 
 function App() {
-  const [game, setGame] = useState(() => dealGame())
+  const [phase, setPhase] = useState('home')
+  const [game, setGame] = useState(null)
   const [selectedCard, setSelectedCard] = useState(null)
   const [showHelp, setShowHelp] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [roomCode] = useState('SH7HAD')
   const [joinCode, setJoinCode] = useState('SH7HAD')
   const [playerName, setPlayerName] = useState('Du')
   const [connection, setConnection] = useState('offline')
   const [roomPlayers, setRoomPlayers] = useState([])
   const [connectionMessage, setConnectionMessage] = useState('')
   const socketRef = useRef(null)
-  const player = game.players[0]
-  const topCard = effectiveTop(game.discardPile)
-  const currentTurnName = game.currentPlayer === 0
+  const player = game?.players[0]
+  const topCard = game ? effectiveTop(game.discardPile) : null
+  const currentTurnName = game?.currentPlayer === 0
     ? playerName
-    : roomPlayers[game.currentPlayer]?.name ?? game.players[game.currentPlayer]?.name ?? 'Nächster Spieler'
-  const isPlayable = game.currentPlayer === 0 && selectedCard !== null && canPlay(player.hand[selectedCard], game.discardPile)
+    : roomPlayers[game?.currentPlayer]?.name ?? game?.players[game?.currentPlayer]?.name ?? 'Nächster Spieler'
+  const isPlayable = game?.currentPlayer === 0 && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
 
   const joinRoom = () => {
     socketRef.current?.close()
@@ -58,7 +58,10 @@ function App() {
     socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'room:join', roomCode: joinCode, name: playerName })))
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data)
-      if (message.type === 'room:joined') setConnection('connected')
+      if (message.type === 'room:joined') {
+        setConnection('connected')
+        setPhase('lobby')
+      }
       if (message.type === 'room:update') setRoomPlayers(message.players)
       if (message.type === 'error') {
         setConnection('offline')
@@ -72,13 +75,18 @@ function App() {
     })
   }
 
-  useEffect(() => {
-    joinRoom()
-    return () => {
-      socketRef.current?.close()
-      socketRef.current = null
-    }
+  useEffect(() => () => {
+    socketRef.current?.close()
+    socketRef.current = null
   }, [])
+
+  const startGame = () => {
+    setPhase('dealing')
+    window.setTimeout(() => {
+      setGame(dealGame(Math.max(3, Math.min(4, roomPlayers.length || 4))))
+      setPhase('game')
+    }, 1800)
+  }
 
   const playCard = () => {
     if (!isPlayable) return
@@ -98,7 +106,7 @@ function App() {
 
   const copyRoom = async () => {
     try {
-      await navigator.clipboard.writeText(roomCode)
+      await navigator.clipboard.writeText(joinCode)
       setCopied(true)
       setTimeout(() => setCopied(false), 1600)
     } catch {
@@ -107,11 +115,51 @@ function App() {
     }
   }
 
+  if (phase === 'home') {
+    return (
+      <main className="app-shell start-screen">
+        <div className="start-card">
+          <div className="brand start-brand"><span className="brand-mark">S</span><span>shithad</span></div>
+          <span className="eyebrow">DAS KARTENSPIEL</span>
+          <h1>Bereit für eine Runde?</h1>
+          <p className="start-copy">Erstelle einen Raum oder tritt mit deinen Freunden bei. Alle sitzen gemeinsam am Tisch.</p>
+          <div className="start-form">
+            <label>Dein Name<input value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="z. B. Alex" maxLength={20} /></label>
+            <label>Raumcode<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="z. B. SH7HAD" maxLength={8} /></label>
+            <button className="primary-action" onClick={joinRoom}>Raum betreten</button>
+          </div>
+          {connectionMessage && <p className="connection-error">{connectionMessage}</p>}
+          <span className="start-note">Gleicher Raum · bis zu 4 Spieler</span>
+        </div>
+      </main>
+    )
+  }
+
+  if (phase === 'lobby' || phase === 'dealing') {
+    const seatedPlayers = roomPlayers.length ? roomPlayers : [{ id: 'local', name: playerName }]
+    return (
+      <main className="app-shell lobby-screen">
+        <div className="lobby-header"><div className="brand"><span className="brand-mark">S</span><span>shithad</span></div><span className="room-pill">Raum <strong>{joinCode}</strong> · {connection === 'connected' ? 'Verbunden' : 'Verbinde …'}</span></div>
+        <section className="lobby-card">
+          <span className="eyebrow">SPIELRAUM</span>
+          <h1>Setzt euch an den Tisch</h1>
+          <p className="start-copy">Warte, bis alle da sind. Wenn ihr bereit seid, startet die Runde.</p>
+          <div className="lobby-table">
+            <div className="lobby-table-center"><span className="brand-mark">S</span><span>SHITHAD</span></div>
+            {seatedPlayers.map((seatedPlayer, index) => <div className={`seat seat-${index}`} key={seatedPlayer.id}><Avatar player={{ initials: seatedPlayer.name.slice(0, 1).toUpperCase(), color: index === 0 ? 'purple' : opponents[(index - 1) % opponents.length].color }} /><strong>{seatedPlayer.name}</strong>{index === 0 && <span className="host-label">Du</span>}</div>)}
+            {phase === 'dealing' && <div className="deal-animation" aria-label="Karten werden ausgeteilt">{[0, 1, 2, 3, 4, 5].map((card) => <span className="deal-card" key={card}>S</span>)}</div>}
+          </div>
+          <div className="lobby-footer"><span><span className="live-dot" /> {seatedPlayers.length}/4 am Tisch</span><button className="primary-action" disabled={phase === 'dealing'} onClick={startGame}>{phase === 'dealing' ? 'Karten werden ausgeteilt …' : 'Spiel starten'}</button></div>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">S</span><span>shithad</span></div>
-        <div className="room-status"><span className="live-dot" /> Raum <strong>{roomCode}</strong><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
+        <div className="room-status"><span className="live-dot" /> Raum <strong>{joinCode}</strong><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
         <div className="top-actions">
           <button className="icon-button" onClick={() => setShowHelp(!showHelp)} aria-label="Spielregeln"><HelpCircle size={19} /></button>
           <button className="icon-button" aria-label="Einstellungen"><Settings size={19} /></button>
@@ -162,7 +210,7 @@ function App() {
           <div className="section-title"><span><Users size={16} /> Spieler <b>{roomPlayers.length || 1}/4</b></span><button className="invite-button" onClick={copyRoom}><Plus size={15} /> Einladen</button></div>
           <div className="player-list">{(roomPlayers.length ? roomPlayers : [{ name: playerName, id: 'local' }]).map((roomPlayer, index) => { const currentPlayer = { ...roomPlayer, initials: roomPlayer.name.slice(0, 1).toUpperCase(), color: index === 0 ? 'purple' : opponents[(index - 1) % opponents.length].color, host: roomPlayer.name === playerName }; return <div className="list-player" key={roomPlayer.id}><Avatar player={currentPlayer} /><div><strong>{roomPlayer.name}</strong><span>{currentPlayer.name === playerName ? 'Du' : 'Verbunden'}</span></div>{currentPlayer.name === playerName && <Crown size={14} className="crown" />}{currentPlayer.name !== playerName && <span className="ready-dot" />}</div> })}</div>
           <div className="divider" />
-          <div className="rules"><div className="section-title"><span><Wifi size={16} /> Verbindung</span><span className={connection === 'connected' ? 'connected' : 'connection-offline'}>{connection === 'connected' ? 'Verbunden' : connection === 'connecting' ? 'Verbinde …' : 'Nicht verbunden'}</span></div><p>Teile den Raumcode <strong>{joinCode}</strong> und die LAN-Adresse dieses Computers mit deinen Freunden.</p><div className="join-form"><input value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="Dein Name" maxLength={20} /><input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="Raumcode" maxLength={8} /><button onClick={joinRoom}>Raum beitreten</button></div>{connectionMessage && <small className="connection-error">{connectionMessage}</small>}</div>
+          <div className="rules"><div className="section-title"><span><Wifi size={16} /> Verbindung</span><span className={connection === 'connected' ? 'connected' : 'connection-offline'}>{connection === 'connected' ? 'Verbunden' : 'Nicht verbunden'}</span></div><p>Raum <strong>{joinCode}</strong></p></div>
           <button className="settings-link" onClick={() => setShowHelp(!showHelp)}><HelpCircle size={16} /> Wie wird gespielt?</button>
           {showHelp && <div className="help-popover"><strong>ShitHad – Spielregeln</strong><p>4 ist die niedrigste Karte, Ass die höchste. Spiele reihum eine gleich hohe oder höhere Karte. Eine 2 darf immer gelegt werden, eine 3 ist durchsichtig, die 7 verlangt eine niedrige Karte, die 10 räumt den Stapel weg und der Bube setzt aus. Wenn du nicht legen kannst, nimmst du den ganzen Ablagestapel.</p><p>Start: 3 Handkarten, 3 offene und 3 verdeckte Karten. Sind die Handkarten leer, folgen die offenen und danach die verdeckten Karten einzeln.</p></div>}
         </aside>
