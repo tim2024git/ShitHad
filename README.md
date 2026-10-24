@@ -35,6 +35,18 @@ http://192.168.1.42:5173
 
 Alle Mitspieler müssen im selben WLAN sein. Sie öffnen die Adresse auf dem Handy, tragen ihren Namen und denselben Raumcode ein und wählen **Raum beitreten**. Die Teilnehmerliste wird über den lokalen WebSocket-Server auf Port `3001` live synchronisiert. Falls macOS nach einer Firewall-Freigabe fragt, muss Node den Zugriff erlauben.
 
+## Auf Vercel veröffentlichen
+
+Das Frontend kann direkt aus diesem GitHub-Repository auf Vercel importiert werden:
+
+1. Auf [vercel.com/new](https://vercel.com/new) anmelden.
+2. `tim2024git/ShitHad` importieren.
+3. Framework **Vite** auswählen und deployen.
+
+Vercel hostet damit die Oberfläche. Der aktuelle WebSocket-Server in `server.js` braucht weiterhin einen laufenden Node-Host (zum Beispiel Railway, Render oder einen eigenen Server). Nach dem Deployment muss in Vercel die Umgebungsvariable `VITE_WS_URL` auf die sichere WebSocket-Adresse dieses Servers gesetzt werden, zum Beispiel `wss://shithad-server.example.com`. Danach neu deployen.
+
+Nur das Vercel-Frontend ohne `VITE_WS_URL` ist sichtbar, kann aber keine echten Online-Räume synchronisieren.
+
 ## Nächste Ausbaustufe
 
 Der Raumcode und die Spieleransicht sind bereits als eigene UI-Flächen angelegt. Für echtes Beitreten per Handy kann als nächster Schritt ein kleines Backend (z. B. WebSocket/Socket.IO) ergänzt werden; der Raumzustand sollte dann serverseitig verwaltet und an alle Clients verteilt werden.
