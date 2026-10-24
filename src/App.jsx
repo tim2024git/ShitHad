@@ -49,12 +49,38 @@ function App() {
   const isPlayable = game?.currentPlayer === 0 && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
 
   const connectRoom = (mode = roomMode, requestedCode = joinCode) => {
-    socketRef.current?.close()
+    if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
+    else socketRef.current?.close()
     const configuredSocketUrl = import.meta.env.VITE_WS_URL
     if (!configuredSocketUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      setConnection('offline')
-      setConnectionMessage('Online-Räume sind noch nicht verbunden. Hinterlege in Vercel VITE_WS_URL für den Spielserver.')
+      connectOnlineRoom(mode, requestedCode)
       return
+    }
+
+    const connectOnlineRoom = async (mode, requestedCode) => {
+      setConnection('connecting')
+      setConnectionMessage('')
+      try {
+        const result = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, roomCode: requestedCode, name: playerName }),
+        })
+        const payload = await result.json()
+        if (!result.ok) throw new Error(payload.message ?? 'Raum konnte nicht geöffnet werden.')
+        setJoinCode(payload.roomCode)
+        setRoomPlayers(payload.players)
+        setConnection('connected')
+        setPhase('lobby')
+        window.clearInterval(socketRef.current)
+        socketRef.current = window.setInterval(async () => {
+          const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}`)
+          if (state.ok) setRoomPlayers((await state.json()).players)
+        }, 2000)
+      } catch (error) {
+        setConnection('offline')
+        setConnectionMessage(error.message)
+      }
     }
     const socketUrl = configuredSocketUrl
       ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:3001`
@@ -87,7 +113,8 @@ function App() {
   }
 
   useEffect(() => () => {
-    socketRef.current?.close()
+    if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
+    else socketRef.current?.close()
     socketRef.current = null
   }, [])
 
@@ -100,10 +127,8 @@ function App() {
   }
 
   const createRoom = () => {
-    const generatedCode = `SH${Math.random().toString(36).slice(2, 6).toUpperCase()}`
-    setJoinCode(generatedCode)
     setRoomMode('create')
-    connectRoom('create', generatedCode)
+    connectRoom('create', '')
   }
 
   const playCard = () => {
