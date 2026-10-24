@@ -1,7 +1,9 @@
 import { Redis } from '@upstash/redis'
 
-const redisConfigured = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
-const redis = redisConfigured ? Redis.fromEnv() : null
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN
+const redisConfigured = Boolean(redisUrl && redisToken)
+const redis = redisConfigured ? new Redis({ url: redisUrl, token: redisToken }) : null
 
 const keyFor = (code) => `shithad:room:${code}`
 const codeOf = (value) => String(value ?? '').trim().toUpperCase().slice(0, 8)
