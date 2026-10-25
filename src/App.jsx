@@ -307,7 +307,7 @@ function App() {
     const seatedPlayers = roomPlayers.length ? roomPlayers : [{ id: 'local', name: playerName }]
     return (
       <main className="app-shell lobby-screen">
-        <div className="lobby-header"><div className="brand"><span className="brand-mark">S</span><span>shithad</span></div><span className="room-pill">Raum <strong>{joinCode}</strong> · {connection === 'connected' ? 'Verbunden' : 'Verbinde …'}</span></div>
+        <div className="lobby-header"><div className="brand"><span className="brand-mark">S</span><span>shithad</span></div><div className="lobby-header-actions"><span className="room-pill">Raum <strong>{joinCode}</strong> · {connection === 'connected' ? 'Verbunden' : 'Verbinde …'}</span><button className="leave-button lobby-leave-button" onClick={leaveRoom}><LogOut size={16} /> Verlassen</button></div></div>
         <section className="lobby-card">
           <span className="eyebrow">SPIELRAUM</span>
           <h1>Setzt euch an den Tisch</h1>
