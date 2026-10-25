@@ -45,6 +45,9 @@ function App() {
   const [myPlayerId, setMyPlayerId] = useState(null)
   const [dealingStep, setDealingStep] = useState(0)
   const dealingTimerRef = useRef(null)
+  const roomStateRef = useRef(null)
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
   const player = game?.players[0]
   const topCard = game ? effectiveTop(game.discardPile) : null
   const currentTurnName = game?.currentPlayer === 0
@@ -56,7 +59,38 @@ function App() {
   const dealingTarget = dealingStep % dealingPlayerCount
   const dealingRound = Math.floor(dealingStep / dealingPlayerCount)
 
-  const connectOnlineRoom = async (mode, requestedCode) => {
+  const beginDealing = (startedAt) => {
+    if (phaseRef.current === 'dealing' || phaseRef.current === 'game') return
+    const playerCount = Math.max(3, Math.min(6, roomPlayers.length || 3))
+    const totalSteps = playerCount * 9
+    const elapsedSteps = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 145))
+    let step = Math.min(totalSteps, elapsedSteps)
+    setDealingStep(step)
+    setPhase(step >= totalSteps ? 'game' : 'dealing')
+    window.clearInterval(dealingTimerRef.current)
+    dealingTimerRef.current = window.setInterval(() => {
+      step += 1
+      setDealingStep(Math.min(step, totalSteps))
+      if (step >= totalSteps) {
+        window.clearInterval(dealingTimerRef.current)
+        setGame(dealGame(playerCount))
+        setPhase('game')
+      }
+    }, 145)
+  }
+
+  const applyRoomState = (payload) => {
+    setJoinCode(payload.roomCode ?? joinCode)
+    setRoomPlayers(payload.players ?? [])
+    if (payload.playerId) {
+      setMyPlayerId(payload.playerId)
+      localStorage.setItem('shithad-session', JSON.stringify({ roomCode: payload.roomCode, playerName, playerId: payload.playerId }))
+    }
+    roomStateRef.current = payload
+    if (payload.phase === 'dealing' && payload.startedAt) beginDealing(payload.startedAt)
+  }
+
+  const connectOnlineRoom = async (mode, requestedCode, restoredPlayerId = null) => {
       setIsConnecting(true)
       setConnection('connecting')
       setConnectionMessage('')
@@ -64,19 +98,17 @@ function App() {
         const result = await fetch('/api/rooms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, roomCode: requestedCode, name: playerName }),
+          body: JSON.stringify({ mode, roomCode: requestedCode, name: playerName, playerId: restoredPlayerId }),
         })
         const payload = await result.json()
         if (!result.ok) throw new Error(payload.message ?? 'Raum konnte nicht geöffnet werden.')
-        setJoinCode(payload.roomCode)
-        setRoomPlayers(payload.players)
-        setMyPlayerId(payload.playerId)
+        applyRoomState(payload)
         setConnection('connected')
         setPhase('lobby')
         window.clearInterval(socketRef.current)
         socketRef.current = window.setInterval(async () => {
           const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}`)
-          if (state.ok) setRoomPlayers((await state.json()).players)
+          if (state.ok) applyRoomState(await state.json())
         }, 2000)
       } catch (error) {
         setConnection('offline')
@@ -134,22 +166,35 @@ function App() {
     socketRef.current = null
   }, [])
 
-  const startGame = () => {
-    if (!isHost) return
-    setDealingStep(0)
-    setPhase('dealing')
-    window.clearInterval(dealingTimerRef.current)
-    const totalSteps = Math.max(3, Math.min(6, roomPlayers.length || 1)) * 9
-    let step = 0
-    dealingTimerRef.current = window.setInterval(() => {
-      step += 1
-      setDealingStep(step)
-      if (step >= totalSteps) {
-        window.clearInterval(dealingTimerRef.current)
-        setGame(dealGame(Math.max(3, Math.min(6, roomPlayers.length || 3))))
-        setPhase('game')
-      }
-    }, 145)
+  useEffect(() => {
+    const saved = localStorage.getItem('shithad-session')
+    if (!saved) return undefined
+    try {
+      const session = JSON.parse(saved)
+      setPlayerName(session.playerName)
+      setJoinCode(session.roomCode)
+      setMyPlayerId(session.playerId)
+      connectOnlineRoom('join', session.roomCode, session.playerId)
+    } catch {
+      localStorage.removeItem('shithad-session')
+    }
+    return undefined
+  }, [])
+
+  const startGame = async () => {
+    if (!isHost || !roomStateRef.current?.roomCode) return
+    try {
+      const result = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start', roomCode: roomStateRef.current.roomCode, playerId: myPlayerId, name: playerName }),
+      })
+      const payload = await result.json()
+      if (!result.ok) throw new Error(payload.message ?? 'Das Spiel konnte nicht gestartet werden.')
+      applyRoomState(payload)
+    } catch (error) {
+      setConnectionMessage(error.message)
+    }
   }
 
   const dealingLabel = () => {
