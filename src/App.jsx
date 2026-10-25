@@ -124,6 +124,13 @@ function App() {
       localStorage.setItem('shithad-session', JSON.stringify({ roomCode: payload.roomCode, playerName, playerId: payload.playerId }))
     }
     roomStateRef.current = payload
+    if (payload.gameState?.discardPile) {
+      setGame((currentGame) => currentGame ? {
+        ...currentGame,
+        discardPile: payload.gameState.discardPile,
+        currentPlayer: Math.max(0, (payload.players ?? []).findIndex((entry) => entry.id === payload.gameState.currentPlayerId)),
+      } : currentGame)
+    }
     if (payload.phase === 'dealing' && payload.startedAt) beginDealing(payload.startedAt)
   }
 
@@ -266,14 +273,29 @@ function App() {
     const remainingHand = player.hand.filter((_, index) => index !== selectedCard)
     const nextDrawPile = [...game.drawPile]
     while (remainingHand.length < 3 && nextDrawPile.length && card.value !== 10) remainingHand.push(nextDrawPile.pop())
+    const nextPlayerIndex = (game.currentPlayer + (card.value === 11 ? 2 : 1)) % game.players.length
     const updatedPlayers = game.players.map((entry, index) => index === playerIndex ? { ...entry, hand: remainingHand } : entry)
     setGame({
       ...game,
       players: updatedPlayers,
       drawPile: nextDrawPile,
       discardPile: card.value === 10 ? [] : [...game.discardPile, card],
-      currentPlayer: (game.currentPlayer + (card.value === 11 ? 2 : 1)) % game.players.length,
+      currentPlayer: nextPlayerIndex,
     })
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'play',
+          roomCode: joinCode,
+          playerId: myPlayerId,
+          nextPlayerId: roomPlayers[nextPlayerIndex]?.id ?? game.players[nextPlayerIndex]?.id,
+          card,
+          players: updatedPlayers.map((entry) => ({ id: entry.id, name: entry.name, host: entry.host, lastSeen: new Date().toISOString() })),
+        }),
+      }).catch((error) => setConnectionMessage(error.message))
+    }
     setSelectedCard(null)
   }
 
