@@ -27,10 +27,10 @@ export function createDeck() {
   )
 }
 
-export function shuffle(cards) {
+export function shuffle(cards, random = Math.random) {
   const copy = [...cards]
   for (let index = copy.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1))
+    const randomIndex = Math.floor(random() * (index + 1))
     ;[copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]]
   }
   return copy
@@ -61,11 +61,16 @@ export function specialRule(value) {
   }[value] ?? null
 }
 
-export function dealGame(playerCount = 4) {
-  const deck = shuffle(createDeck())
+export function dealGame(playerCount = 4, seed = 'local', playerData = []) {
+  let state = [...String(seed)].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 2166136261)
+  const random = () => {
+    state = (1664525 * state + 1013904223) >>> 0
+    return state / 4294967296
+  }
+  const deck = shuffle(createDeck(), random)
   const players = Array.from({ length: playerCount }, (_, index) => ({
-    id: index,
-    name: index === 0 ? 'Du' : ['Lena', 'Tom', 'Mika'][index - 1],
+    id: playerData[index]?.id ?? index,
+    name: playerData[index]?.name ?? (index === 0 ? 'Du' : ['Lena', 'Tom', 'Mika'][index - 1] ?? `Spieler ${index + 1}`),
     hand: deck.splice(0, 3),
     faceUp: deck.splice(0, 3),
     faceDown: deck.splice(0, 3),

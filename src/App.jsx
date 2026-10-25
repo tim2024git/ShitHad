@@ -48,12 +48,13 @@ function App() {
   const roomStateRef = useRef(null)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
-  const player = game?.players[0]
+  const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? 0
+  const player = game?.players[playerIndex >= 0 ? playerIndex : 0]
   const topCard = game ? effectiveTop(game.discardPile) : null
-  const currentTurnName = game?.currentPlayer === 0
+  const currentTurnName = game?.currentPlayer === playerIndex
     ? playerName
     : roomPlayers[game?.currentPlayer]?.name ?? game?.players[game?.currentPlayer]?.name ?? 'Nächster Spieler'
-  const isPlayable = game?.currentPlayer === 0 && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
+  const isPlayable = game?.currentPlayer === playerIndex && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
   const isHost = roomPlayers.find((roomPlayer) => roomPlayer.id === myPlayerId)?.host === true
   const dealingPlayerCount = Math.max(3, Math.min(6, roomPlayers.length || 3))
   const dealingTarget = dealingStep % dealingPlayerCount
@@ -63,7 +64,7 @@ function App() {
     if (phaseRef.current === 'dealing' || phaseRef.current === 'game') return
     const playerCount = Math.max(3, Math.min(6, roomPlayers.length || 3))
     const totalSteps = playerCount * 9
-    const elapsedSteps = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 145))
+    const elapsedSteps = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 650))
     let step = Math.min(totalSteps, elapsedSteps)
     setDealingStep(step)
     setPhase(step >= totalSteps ? 'game' : 'dealing')
@@ -73,10 +74,10 @@ function App() {
       setDealingStep(Math.min(step, totalSteps))
       if (step >= totalSteps) {
         window.clearInterval(dealingTimerRef.current)
-        setGame(dealGame(playerCount))
+        setGame(dealGame(playerCount, startedAt, roomPlayers))
         setPhase('game')
       }
-    }, 145)
+    }, 650)
   }
 
   const applyRoomState = (payload) => {
@@ -214,9 +215,10 @@ function App() {
     const remainingHand = player.hand.filter((_, index) => index !== selectedCard)
     const nextDrawPile = [...game.drawPile]
     while (remainingHand.length < 3 && nextDrawPile.length && card.value !== 10) remainingHand.push(nextDrawPile.pop())
+    const updatedPlayers = game.players.map((entry, index) => index === playerIndex ? { ...entry, hand: remainingHand } : entry)
     setGame({
       ...game,
-      players: [{ ...player, hand: remainingHand }, ...game.players.slice(1)],
+      players: updatedPlayers,
       drawPile: nextDrawPile,
       discardPile: card.value === 10 ? [] : [...game.discardPile, card],
       currentPlayer: (game.currentPlayer + (card.value === 11 ? 2 : 1)) % game.players.length,
@@ -291,9 +293,9 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
-            <div className="player player-top"><Avatar player={opponents[2]} /><div><strong>{currentTurnName}</strong><span>{game.currentPlayer === 0 ? player.hand.length : game.players[game.currentPlayer]?.hand.length ?? 0} Karten</span></div><span className="turn-chip">ist dran</span></div>
-            <div className="player player-left"><Avatar player={opponents[0]} /><div><strong>{opponents[0].name}</strong><span>{opponents[0].cards} Karten</span></div></div>
-            <div className="player player-right"><Avatar player={opponents[1]} /><div><strong>{opponents[1].name}</strong><span>{opponents[1].cards} Karten</span></div></div>
+            <div className="player player-top"><Avatar player={{ initials: (game.players[2]?.name ?? 'M').slice(0, 1), color: 'yellow' }} /><div><strong>{game.players[2]?.name ?? currentTurnName}</strong><span>{game.players[2]?.hand.length ?? 0} Karten</span></div>{game.currentPlayer === 2 && <span className="turn-chip">ist dran</span>}<div className="table-player-cards">{game.players[2]?.faceUp?.map((card) => <Card key={card.id} {...card} small />)}</div></div>
+            <div className="player player-left"><Avatar player={{ initials: (game.players[0]?.name ?? 'L').slice(0, 1), color: 'coral' }} /><div><strong>{game.players[0]?.name}</strong><span>{game.players[0]?.hand.length ?? 0} Karten</span></div>{game.currentPlayer === 0 && <span className="turn-chip">ist dran</span>}<div className="table-player-cards">{game.players[0]?.faceUp?.map((card) => <Card key={card.id} {...card} small />)}</div></div>
+            <div className="player player-right"><Avatar player={{ initials: (game.players[1]?.name ?? 'T').slice(0, 1), color: 'blue' }} /><div><strong>{game.players[1]?.name}</strong><span>{game.players[1]?.hand.length ?? 0} Karten</span></div>{game.currentPlayer === 1 && <span className="turn-chip">ist dran</span>}<div className="table-player-cards">{game.players[1]?.faceUp?.map((card) => <Card key={card.id} {...card} small />)}</div></div>
 
             <div className="table-center">
               <div className="pile-area">
