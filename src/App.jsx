@@ -62,7 +62,14 @@ function App() {
   const dealingTarget = dealingStep % dealingPlayerCount
   const dealingRound = Math.floor(dealingStep / dealingPlayerCount)
   const seatColors = ['purple', 'coral', 'blue', 'yellow', 'coral', 'blue']
-  const leaveRoom = () => {
+  const leaveRoom = async () => {
+    if (joinCode && myPlayerId && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'leave', roomCode: joinCode, playerId: myPlayerId, name: playerName }),
+      }).catch(() => {})
+    }
     window.clearInterval(dealingTimerRef.current)
     if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
     else socketRef.current?.close()
@@ -137,7 +144,7 @@ function App() {
         setPhase('lobby')
         window.clearInterval(socketRef.current)
         socketRef.current = window.setInterval(async () => {
-          const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}`)
+          const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}&playerId=${encodeURIComponent(payload.playerId ?? myPlayerId ?? '')}`)
           if (state.ok) applyRoomState(await state.json())
         }, 2000)
       } catch (error) {
