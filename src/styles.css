@@ -48,6 +48,8 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .table-player-cards .card-back { border-width:2px; }
 .table-player-cards .card-back-mark { width:18px; height:25px; font-size:12px; }
 .table-player-cards .card:hover { transform:translateY(-6px); z-index:3; }
+.dealing-card { animation:card-land .42s ease-out both; }
+@keyframes card-land { from { opacity:0; transform:translateY(-24px) scale(.88) rotate(-4deg); } to { opacity:1; transform:translateY(0) scale(1) rotate(0); } }
 .player span:not(.avatar):not(.turn-chip),.your-player span,.list-player span { display: block; color: #9da7a5; font-size: 11px; margin-top: 3px; }
 .table-seat { flex-direction:column; gap:7px; min-width:190px; }
 .table-player-info { display:flex; align-items:center; gap:8px; white-space:nowrap; }

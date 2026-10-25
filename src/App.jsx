@@ -8,9 +8,9 @@ const opponents = [
   { name: 'Mika', initials: 'M', cards: 7, active: true, color: 'yellow' },
 ]
 
-function Card({ rank, suit, faceDown = false, small = false, onClick }) {
+function Card({ rank, suit, faceDown = false, small = false, onClick, className = '' }) {
   return (
-    <button className={`card ${faceDown ? 'card-back' : ''} ${small ? 'card-small' : ''}`} onClick={onClick}>
+    <button className={`card ${faceDown ? 'card-back' : ''} ${small ? 'card-small' : ''} ${className}`} onClick={onClick}>
       {faceDown ? (
         <span className="card-back-mark">S</span>
       ) : (
@@ -102,6 +102,7 @@ function App() {
     const totalSteps = playerCount * 9
     const elapsedSteps = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 650))
     let step = Math.min(totalSteps, elapsedSteps)
+    setGame(dealGame(playerCount, startedAt, roomPlayers))
     setDealingStep(step)
     setPhase(step >= totalSteps ? 'game' : 'dealing')
     window.clearInterval(dealingTimerRef.current)
@@ -110,7 +111,6 @@ function App() {
       setDealingStep(Math.min(step, totalSteps))
       if (step >= totalSteps) {
         window.clearInterval(dealingTimerRef.current)
-        setGame(dealGame(playerCount, startedAt, roomPlayers))
         setPhase('game')
       }
     }, 650)
@@ -247,6 +247,14 @@ function App() {
     return `Handkarte ${dealingRound - 5} von 3`
   }
 
+  const dealtCardsForPlayer = (index) => {
+    const completedRounds = Math.floor(dealingStep / dealingPlayerCount)
+    const playersInCurrentRound = dealingStep % dealingPlayerCount
+    return Math.min(9, completedRounds + (index < playersInCurrentRound ? 1 : 0))
+  }
+
+  const visibleCards = (cards, amount) => cards.slice(0, Math.max(0, Math.min(cards.length, amount)))
+
   const createRoom = () => {
     setRoomMode('create')
     connectRoom('create', '')
@@ -303,7 +311,7 @@ function App() {
     )
   }
 
-  if (phase === 'lobby' || phase === 'dealing') {
+  if (phase === 'lobby') {
     const seatedPlayers = roomPlayers.length ? roomPlayers : [{ id: 'local', name: playerName }]
     return (
       <main className="app-shell lobby-screen">
@@ -315,7 +323,6 @@ function App() {
           <div className="lobby-table">
             <div className="lobby-table-center"><span className="brand-mark">S</span><span>SHITHAD</span></div>
             {seatedPlayers.map((seatedPlayer, index) => <div className={`seat seat-position-${index}`} key={seatedPlayer.id}><Avatar player={{ initials: seatedPlayer.name.slice(0, 1).toUpperCase(), color: index === 0 ? 'purple' : opponents[(index - 1) % opponents.length].color }} /><strong>{seatedPlayer.name}</strong>{seatedPlayer.host && <span className="host-label">Host · teilt aus</span>}</div>)}
-            {phase === 'dealing' && <div className="deal-animation" aria-label="Karten werden ausgeteilt"><span className="deal-card deal-card-active" style={{ '--deal-x': `${[-235, -120, 0, 235, 125, -125][dealingTarget]}px`, '--deal-y': `${[0, 125, 145, 0, -105, -105][dealingTarget]}px` }}>S</span><span className="deal-label">{dealingLabel()} · {seatedPlayers[dealingTarget]?.name}</span></div>}
           </div>
           <div className="lobby-footer"><span><span className="live-dot" /> {seatedPlayers.length}/6 am Tisch</span>{isHost ? <button className="primary-action" disabled={phase === 'dealing' || seatedPlayers.length < 3} onClick={startGame}>{phase === 'dealing' ? 'Karten werden ausgeteilt …' : seatedPlayers.length < 3 ? 'Mindestens 3 Spieler' : 'Spiel starten'}</button> : <span className="waiting-host">Warte auf den Host</span>}</div>
         </section>
@@ -339,7 +346,7 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
-            {game.players.map((tablePlayer, index) => <div className={`player table-seat table-seat-${index}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{tablePlayer.hand.length} Handkarten</span></div>{game.currentPlayer === index && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{tablePlayer.faceDown.map((card) => <Card key={`down-${card.id}`} faceDown small />)}{tablePlayer.faceUp.map((card) => <Card key={card.id} {...card} small />)}</div></div>)}
+            {game.players.map((tablePlayer, index) => { const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-seat-${index}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}</div></div> })}
 
             <div className="table-center">
               <div className="pile-area">
@@ -352,20 +359,20 @@ function App() {
               </div>
             </div>
 
-            <div className="table-message"><span className="message-dot" /> {currentTurnName} ist dran</div>
+            <div className="table-message"><span className="message-dot" /> {phase === 'dealing' ? `${dealingLabel()} · ${roomPlayers[dealingTarget]?.name ?? game.players[dealingTarget]?.name ?? ''}` : `${currentTurnName} ist dran`}</div>
           </div>
 
-          <div className="your-area">
+          <div className={`your-area ${phase === 'dealing' ? 'your-area-dealing' : ''}`}>
             <div className="your-heading"><div className="your-player"><Avatar player={{ initials: playerName.slice(0, 1).toUpperCase(), color: 'purple' }} /><div><strong>{playerName}</strong><span>{player.hand.length} Karten auf der Hand</span></div></div><span className="hint">Wähle eine Karte zum Ablegen</span></div>
             <div className="face-up-row">
               <span className="row-label">Deine offenen Karten</span>
-              <div className="cards-row">{player.faceUp.map((card) => <Card key={card.id} {...card} small />)}</div>
+              <div className="cards-row">{visibleCards(player.faceUp, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 3)) : 3).map((card) => <Card key={card.id} {...card} small />)}</div>
             </div>
             <div className="face-down-row">
               <span className="row-label">Deine verdeckten Karten</span>
-              <div className="cards-row">{[0, 1, 2].map((index) => <Card key={index} faceDown small />)}</div>
+              <div className="cards-row">{visibleCards(player.faceDown, phase === 'dealing' ? Math.min(3, dealtCardsForPlayer(playerIndex)) : 3).map((card) => <Card key={card.id} faceDown small />)}</div>
             </div>
-            <div className="hand-row"><span className="row-label">Handkarten</span><div className="cards-row">{player.hand.map((card, index) => <Card key={card.id} {...card} onClick={() => setSelectedCard(index)} />)}</div></div>
+            <div className="hand-row"><span className="row-label">Handkarten</span><div className="cards-row">{visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, index) => <Card key={card.id} {...card} onClick={() => setSelectedCard(index)} />)}</div></div>
             {selectedCard !== null && <button className="play-button" disabled={!isPlayable} onClick={playCard}>{isPlayable ? 'Karte ablegen' : 'Nicht spielbar'}</button>}
           </div>
         </div>
