@@ -57,8 +57,8 @@ function App() {
   const pendingPlayRef = useRef(null)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
-  const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? 0
-  const player = game?.players[playerIndex >= 0 ? playerIndex : 0]
+  const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? -1
+  const player = game?.players[playerIndex]
   const topCard = game ? effectiveTop(game.discardPile) : null
   const currentTurnName = game?.currentPlayer === playerIndex
     ? playerName
@@ -104,13 +104,14 @@ function App() {
     }
   }
 
-  const beginDealing = (startedAt) => {
+  const beginDealing = (startedAt, players = roomPlayers) => {
     if (phaseRef.current === 'dealing' || phaseRef.current === 'game') return
-    const playerCount = Math.max(3, Math.min(6, roomPlayers.length || 3))
+    const dealingPlayers = players.length ? players : roomPlayers
+    const playerCount = Math.max(3, Math.min(6, dealingPlayers.length || 3))
     const totalSteps = playerCount * 9
     const elapsedSteps = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 650))
     let step = Math.min(totalSteps, elapsedSteps)
-    setGame(dealGame(playerCount, startedAt, roomPlayers))
+    setGame(dealGame(playerCount, startedAt, dealingPlayers))
     setDealingStep(step)
     setPhase(step >= totalSteps ? 'game' : 'dealing')
     window.clearInterval(dealingTimerRef.current)
@@ -139,7 +140,7 @@ function App() {
       localStorage.setItem('shithad-session', JSON.stringify({ roomCode: payload.roomCode, playerName, playerId: payload.playerId }))
     }
     if (payload.phase === 'game' && !game) {
-      setGame(dealGame(Math.max(3, Math.min(6, (payload.players ?? []).length || 3)), payload.startedAt ?? 'room', payload.players))
+      setGame(dealGame(Math.max(3, Math.min(6, (payload.players ?? []).length || 3)), payload.startedAt ?? 'room', payload.players ?? []))
       setPhase('game')
     }
     if (payload.gameState?.handCounts && !stateIsStale) {
@@ -175,7 +176,7 @@ function App() {
       } : currentGame)
     }
     roomStateRef.current = payload
-    if (payload.phase === 'dealing' && payload.startedAt) beginDealing(payload.startedAt)
+    if (payload.phase === 'dealing' && payload.startedAt) beginDealing(payload.startedAt, payload.players ?? [])
   }
 
   const connectOnlineRoom = async (mode, requestedCode, restoredPlayerId = null) => {
