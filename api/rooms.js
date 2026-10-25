@@ -79,7 +79,7 @@ export async function POST(request) {
       if (!['dealing', 'game'].includes(room.phase)) return json({ message: 'Das Spiel hat noch nicht begonnen.' }, 409)
       if (room.game_state?.currentPlayerId !== payload.playerId) return json({ message: 'Du bist nicht an der Reihe.' }, 403)
       const gameState = {
-        discardPile: [...(room.game_state.discardPile ?? []), payload.card],
+        discardPile: payload.card?.value === 10 ? [] : [...(room.game_state.discardPile ?? []), payload.card],
         currentPlayerId: payload.nextPlayerId,
         handCounts: payload.handCounts ?? room.game_state.handCounts ?? {},
         lastAction: { type: 'play', playerId: payload.playerId, card: payload.card, at: new Date().toISOString() },

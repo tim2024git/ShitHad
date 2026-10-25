@@ -177,7 +177,7 @@ function App() {
       setGame((currentGame) => currentGame ? {
         ...currentGame,
         discardPile: payload.gameState.discardPile,
-        currentPlayer: Math.max(0, (payload.players ?? []).findIndex((entry) => entry.id === payload.gameState.currentPlayerId)),
+        currentPlayer: Math.max(0, currentGame.players.findIndex((entry) => entry.id === payload.gameState.currentPlayerId)),
       } : currentGame)
     }
     roomStateRef.current = payload
@@ -412,7 +412,7 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">S</span><span>shithad</span></div>
-        <div className="room-status"><span className="live-dot" /> Raum <strong>{joinCode}</strong><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
+        <div className="room-status"><span className="live-dot" /> <span>Du bist <strong>{playerName}</strong></span><span className="header-room">Raum <strong>{joinCode}</strong></span><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
         <div className="top-actions">
           <button className="icon-button" onClick={() => setShowHelp(!showHelp)} aria-label="Spielregeln"><HelpCircle size={19} /></button>
           <button className="icon-button" aria-label="Einstellungen"><Settings size={19} /></button>
@@ -438,7 +438,6 @@ function App() {
             </div>
             {animatingCard && <div className="played-card-animation"><Card rank={animatingCard.rank} suit={animatingCard.suit} /></div>}
 
-            <div className="table-message"><span className="message-dot" /> {phase === 'dealing' ? `${dealingLabel()} · ${roomPlayers[dealingTarget]?.name ?? game.players[dealingTarget]?.name ?? ''}` : `${currentTurnName} ist dran`}</div>
             <div className="bottom-hand-area">
               {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={phase === 'dealing' ? undefined : () => playCard(handIndex)} className={phase === 'dealing' ? 'dealing-card' : ''} />)}
             </div>
