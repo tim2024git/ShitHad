@@ -434,7 +434,7 @@ function App() {
 
             <div className="table-message"><span className="message-dot" /> {phase === 'dealing' ? `${dealingLabel()} · ${roomPlayers[dealingTarget]?.name ?? game.players[dealingTarget]?.name ?? ''}` : `${currentTurnName} ist dran`}</div>
             <div className="bottom-hand-area">
-              {phase !== 'dealing' && player?.hand.map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={() => playCard(handIndex)} />)}
+              {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={phase === 'dealing' ? undefined : () => playCard(handIndex)} className={phase === 'dealing' ? 'dealing-card' : ''} />)}
             </div>
           </div>
 
