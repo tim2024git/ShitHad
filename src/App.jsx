@@ -59,6 +59,19 @@ function App() {
   const dealingPlayerCount = Math.max(3, Math.min(6, roomPlayers.length || 3))
   const dealingTarget = dealingStep % dealingPlayerCount
   const dealingRound = Math.floor(dealingStep / dealingPlayerCount)
+  const seatColors = ['purple', 'coral', 'blue', 'yellow', 'coral', 'blue']
+  const leaveRoom = () => {
+    window.clearInterval(dealingTimerRef.current)
+    if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
+    else socketRef.current?.close()
+    localStorage.removeItem('shithad-session')
+    setPhase('home')
+    setGame(null)
+    setRoomPlayers([])
+    setMyPlayerId(null)
+    setConnection('offline')
+    setConnectionMessage('')
+  }
 
   const beginDealing = (startedAt) => {
     if (phaseRef.current === 'dealing' || phaseRef.current === 'game') return
@@ -285,7 +298,7 @@ function App() {
         <div className="top-actions">
           <button className="icon-button" onClick={() => setShowHelp(!showHelp)} aria-label="Spielregeln"><HelpCircle size={19} /></button>
           <button className="icon-button" aria-label="Einstellungen"><Settings size={19} /></button>
-          <button className="leave-button"><LogOut size={16} /> Verlassen</button>
+          <button className="leave-button" onClick={leaveRoom}><LogOut size={16} /> Verlassen</button>
         </div>
       </header>
 
@@ -293,9 +306,7 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
-            <div className="player player-top"><Avatar player={{ initials: (game.players[2]?.name ?? 'M').slice(0, 1), color: 'yellow' }} /><div><strong>{game.players[2]?.name ?? currentTurnName}</strong><span>{game.players[2]?.hand.length ?? 0} Karten</span></div>{game.currentPlayer === 2 && <span className="turn-chip">ist dran</span>}<div className="table-player-cards">{game.players[2]?.faceUp?.map((card) => <Card key={card.id} {...card} small />)}</div></div>
-            <div className="player player-left"><Avatar player={{ initials: (game.players[0]?.name ?? 'L').slice(0, 1), color: 'coral' }} /><div><strong>{game.players[0]?.name}</strong><span>{game.players[0]?.hand.length ?? 0} Karten</span></div>{game.currentPlayer === 0 && <span className="turn-chip">ist dran</span>}<div className="table-player-cards">{game.players[0]?.faceUp?.map((card) => <Card key={card.id} {...card} small />)}</div></div>
-            <div className="player player-right"><Avatar player={{ initials: (game.players[1]?.name ?? 'T').slice(0, 1), color: 'blue' }} /><div><strong>{game.players[1]?.name}</strong><span>{game.players[1]?.hand.length ?? 0} Karten</span></div>{game.currentPlayer === 1 && <span className="turn-chip">ist dran</span>}<div className="table-player-cards">{game.players[1]?.faceUp?.map((card) => <Card key={card.id} {...card} small />)}</div></div>
+            {game.players.map((tablePlayer, index) => <div className={`player table-seat table-seat-${index}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{tablePlayer.hand.length} Handkarten</span></div>{game.currentPlayer === index && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{tablePlayer.faceDown.map((card) => <Card key={`down-${card.id}`} faceDown small />)}{tablePlayer.faceUp.map((card) => <Card key={card.id} {...card} small />)}</div></div>)}
 
             <div className="table-center">
               <div className="pile-area">
@@ -312,7 +323,7 @@ function App() {
           </div>
 
           <div className="your-area">
-            <div className="your-heading"><div className="your-player"><Avatar player={{ initials: 'D', color: 'purple' }} /><div><strong>Du</strong><span>{player.hand.length} Karten auf der Hand</span></div></div><span className="hint">Wähle eine Karte zum Ablegen</span></div>
+            <div className="your-heading"><div className="your-player"><Avatar player={{ initials: playerName.slice(0, 1).toUpperCase(), color: 'purple' }} /><div><strong>{playerName}</strong><span>{player.hand.length} Karten auf der Hand</span></div></div><span className="hint">Wähle eine Karte zum Ablegen</span></div>
             <div className="face-up-row">
               <span className="row-label">Deine offenen Karten</span>
               <div className="cards-row">{player.faceUp.map((card) => <Card key={card.id} {...card} small />)}</div>
@@ -326,16 +337,6 @@ function App() {
           </div>
         </div>
 
-        <aside className="sidebar">
-          <div className="side-header"><div><span className="eyebrow">SPIELRAUM</span><h1>Freundeabend</h1></div><span className="round-badge">Runde 1</span></div>
-          <div className="divider" />
-          <div className="section-title"><span><Users size={16} /> Spieler <b>{roomPlayers.length || 1}/4</b></span><button className="invite-button" onClick={copyRoom}><Plus size={15} /> Einladen</button></div>
-          <div className="player-list">{(roomPlayers.length ? roomPlayers : [{ name: playerName, id: 'local' }]).map((roomPlayer, index) => { const currentPlayer = { ...roomPlayer, initials: roomPlayer.name.slice(0, 1).toUpperCase(), color: index === 0 ? 'purple' : opponents[(index - 1) % opponents.length].color, host: roomPlayer.name === playerName }; return <div className="list-player" key={roomPlayer.id}><Avatar player={currentPlayer} /><div><strong>{roomPlayer.name}</strong><span>{currentPlayer.name === playerName ? 'Du' : 'Verbunden'}</span></div>{currentPlayer.name === playerName && <Crown size={14} className="crown" />}{currentPlayer.name !== playerName && <span className="ready-dot" />}</div> })}</div>
-          <div className="divider" />
-          <div className="rules"><div className="section-title"><span><Wifi size={16} /> Verbindung</span><span className={connection === 'connected' ? 'connected' : 'connection-offline'}>{connection === 'connected' ? 'Verbunden' : 'Nicht verbunden'}</span></div><p>Raum <strong>{joinCode}</strong></p></div>
-          <button className="settings-link" onClick={() => setShowHelp(!showHelp)}><HelpCircle size={16} /> Wie wird gespielt?</button>
-          {showHelp && <div className="help-popover"><strong>ShitHad – Spielregeln</strong><p>4 ist die niedrigste Karte, Ass die höchste. Spiele reihum eine gleich hohe oder höhere Karte. Eine 2 darf immer gelegt werden, eine 3 ist durchsichtig, die 7 verlangt eine niedrige Karte, die 10 räumt den Stapel weg und der Bube setzt aus. Wenn du nicht legen kannst, nimmst du den ganzen Ablagestapel.</p><p>Start: 3 Handkarten, 3 offene und 3 verdeckte Karten. Sind die Handkarten leer, folgen die offenen und danach die verdeckten Karten einzeln.</p></div>}
-        </aside>
       </section>
       <footer><span>SHITHAD</span><span>Lokaler Prototyp · Bereit für Multiplayer</span><span>v0.1.0</span></footer>
     </main>
