@@ -8,6 +8,11 @@ const opponents = [
   { name: 'Mika', initials: 'M', cards: 7, active: true, color: 'yellow' },
 ]
 
+const randomPlayerName = () => {
+  const names = ['Alex', 'Sam', 'Max', 'Mika', 'Luca', 'Nico', 'Toni', 'Jona']
+  return `${names[Math.floor(Math.random() * names.length)]}${Math.floor(100 + Math.random() * 900)}`
+}
+
 function Card({ rank, suit, faceDown = false, small = false, onClick, className = '' }) {
   return (
     <button className={`card ${faceDown ? 'card-back' : ''} ${small ? 'card-small' : ''} ${className}`} onClick={onClick}>
@@ -32,10 +37,11 @@ function App() {
   const [phase, setPhase] = useState('home')
   const [game, setGame] = useState(null)
   const [selectedCard, setSelectedCard] = useState(null)
+  const [animatingCard, setAnimatingCard] = useState(null)
   const [showHelp, setShowHelp] = useState(false)
   const [copied, setCopied] = useState(false)
   const [joinCode, setJoinCode] = useState('SH7HAD')
-  const [playerName, setPlayerName] = useState('Du')
+  const [playerName, setPlayerName] = useState(randomPlayerName)
   const [connection, setConnection] = useState('offline')
   const [roomPlayers, setRoomPlayers] = useState([])
   const [connectionMessage, setConnectionMessage] = useState('')
@@ -76,6 +82,7 @@ function App() {
     localStorage.removeItem('shithad-session')
     setPhase('home')
     setGame(null)
+    setAnimatingCard(null)
     setRoomPlayers([])
     setMyPlayerId(null)
     setConnection('offline')
@@ -301,6 +308,8 @@ function App() {
     const selected = player?.hand[cardIndex]
     if (!game || !player || cardIndex === null || !selected || game.currentPlayer !== playerIndex || !canPlay(selected, game.discardPile)) return
     const card = selected
+    setAnimatingCard({ ...card, animationId: `${card.id}-${Date.now()}` })
+    window.setTimeout(() => setAnimatingCard(null), 520)
     const remainingHand = player.hand.filter((_, index) => index !== cardIndex)
     const nextDrawPile = [...game.drawPile]
     while (remainingHand.length < 3 && nextDrawPile.length && card.value !== 10) remainingHand.push(nextDrawPile.pop())
@@ -413,6 +422,7 @@ function App() {
                 <Card rank={topCard?.rank ?? '—'} suit={topCard?.suit ?? '♠'} />
               </div>
             </div>
+            {animatingCard && <div className="played-card-animation"><Card rank={animatingCard.rank} suit={animatingCard.suit} /></div>}
 
             <div className="table-message"><span className="message-dot" /> {phase === 'dealing' ? `${dealingLabel()} · ${roomPlayers[dealingTarget]?.name ?? game.players[dealingTarget]?.name ?? ''}` : `${currentTurnName} ist dran`}</div>
             <div className="bottom-hand-area">
