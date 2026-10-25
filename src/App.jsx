@@ -54,6 +54,7 @@ function App() {
   const [dealingStep, setDealingStep] = useState(0)
   const dealingTimerRef = useRef(null)
   const roomStateRef = useRef(null)
+  const pendingPlayRef = useRef(null)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? 0
@@ -125,6 +126,12 @@ function App() {
 
   const applyRoomState = (payload) => {
     const previousRoomState = roomStateRef.current
+    const pendingPlay = pendingPlayRef.current
+    const serverAction = payload.gameState?.lastAction
+    if (pendingPlay && serverAction?.playerId === pendingPlay.playerId && serverAction.card?.id === pendingPlay.cardId) {
+      pendingPlayRef.current = null
+    }
+    const stateIsStale = pendingPlay && !(serverAction?.playerId === pendingPlay.playerId && serverAction.card?.id === pendingPlay.cardId)
     setJoinCode(payload.roomCode ?? joinCode)
     setRoomPlayers(payload.players ?? [])
     if (payload.playerId) {
@@ -135,7 +142,7 @@ function App() {
       setGame(dealGame(Math.max(3, Math.min(6, (payload.players ?? []).length || 3)), payload.startedAt ?? 'room', payload.players))
       setPhase('game')
     }
-    if (payload.gameState?.handCounts) {
+    if (payload.gameState?.handCounts && !stateIsStale) {
       setGame((currentGame) => {
         if (!currentGame) return currentGame
         const action = payload.gameState.lastAction
@@ -160,7 +167,7 @@ function App() {
         return { ...currentGame, drawPile, players }
       })
     }
-    if (payload.gameState?.discardPile) {
+    if (payload.gameState?.discardPile && !stateIsStale) {
       setGame((currentGame) => currentGame ? {
         ...currentGame,
         discardPile: payload.gameState.discardPile,
@@ -331,7 +338,7 @@ function App() {
           action: 'play',
           roomCode: joinCode,
           playerId: myPlayerId,
-          nextPlayerId: roomPlayers[nextPlayerIndex]?.id ?? game.players[nextPlayerIndex]?.id,
+          nextPlayerId: game.players[nextPlayerIndex]?.id,
           card,
           handCounts,
           players: updatedPlayers.map((entry) => ({ id: entry.id, name: entry.name, host: entry.host, handCount: entry.hand.length })),
@@ -339,6 +346,7 @@ function App() {
       }).catch((error) => setConnectionMessage(error.message))
     }
     setSelectedCard(null)
+    pendingPlayRef.current = { playerId: myPlayerId, cardId: card.id }
   }
 
   const copyRoom = async () => {
@@ -419,7 +427,7 @@ function App() {
               </div>
               <div className="pile-area discard-area">
                 <div className="pile-label"><span>Ablegen</span><b>{game.discardPile.length}</b></div>
-                <Card rank={topCard?.rank ?? '—'} suit={topCard?.suit ?? '♠'} />
+                {topCard ? <Card rank={topCard.rank} suit={topCard.suit} /> : <div className="empty-discard-pile" aria-label="Ablagestapel leer" />}
               </div>
             </div>
             {animatingCard && <div className="played-card-animation"><Card rank={animatingCard.rank} suit={animatingCard.suit} /></div>}
