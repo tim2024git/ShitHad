@@ -135,6 +135,11 @@ function App() {
     const stateIsStale = pendingPlay && !(serverAction?.playerId === pendingPlay.playerId && serverAction.card?.id === pendingPlay.cardId)
     setJoinCode(payload.roomCode ?? joinCode)
     setRoomPlayers(payload.players ?? [])
+    if (payload.phase === 'game' && phaseRef.current !== 'game') {
+      window.clearInterval(dealingTimerRef.current)
+      setDealingStep(dealingPlayerCount * 9)
+      setPhase('game')
+    }
     if (payload.playerId) {
       setMyPlayerId(payload.playerId)
       localStorage.setItem('shithad-session', JSON.stringify({ roomCode: payload.roomCode, playerName, playerId: payload.playerId }))
@@ -176,7 +181,7 @@ function App() {
       } : currentGame)
     }
     roomStateRef.current = payload
-    if (payload.phase === 'dealing' && payload.startedAt) beginDealing(payload.startedAt, payload.players ?? [])
+    if (payload.phase === 'dealing' && payload.startedAt && phaseRef.current !== 'dealing') beginDealing(payload.startedAt, payload.players ?? [])
   }
 
   const connectOnlineRoom = async (mode, requestedCode, restoredPlayerId = null) => {
