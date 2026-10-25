@@ -35,8 +35,12 @@ export async function POST(request) {
     const rows = await sql`SELECT players FROM shithad_rooms WHERE code = ${code} AND expires_at > NOW()`
     const room = rows[0] ?? { players: [] }
     if (payload.mode === 'create' && room.players.length) return json({ message: 'Dieser Raumcode wird bereits verwendet.' }, 409)
-    if (!room.players.some((player) => player.name === name) && room.players.length >= 4) return json({ message: 'Dieser Raum ist bereits voll.' }, 409)
-    const player = room.players.find((entry) => entry.name === name) ?? { id: crypto.randomUUID(), name }
+    if (!room.players.some((player) => player.name === name) && room.players.length >= 6) return json({ message: 'Dieser Raum ist bereits voll.' }, 409)
+    const player = room.players.find((entry) => entry.name === name) ?? {
+      id: crypto.randomUUID(),
+      name,
+      host: payload.mode === 'create',
+    }
     const players = [...room.players.filter((entry) => entry.id !== player.id), player]
     await sql`
       INSERT INTO shithad_rooms (code, players, expires_at)

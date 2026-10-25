@@ -61,3 +61,14 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 footer { max-width: 1500px; padding: 38px 3.3vw 20px; margin: 0 auto; display:flex; justify-content:space-between; color:#5b6370; font:9px 'DM Mono'; letter-spacing:1px; }
 @media (max-width: 900px) { .game-layout { grid-template-columns: 1fr; }.sidebar { min-height: 0; }.settings-link { position: static; margin-top: 22px; }.help-popover { bottom: 51px; }.table { min-height: 450px; } }
 @media (max-width: 600px) { .topbar { padding:0 16px; gap:15px; height:60px; }.room-status { display:none; }.leave-button { font-size:0; padding-left:10px; }.game-layout { padding:18px 14px 0; }.table { min-height:390px; }.player-left { left:12px; }.player-right { right:12px; }.table-center { top:52%; gap:22px; }.card { width:67px; height:96px; }.your-heading { align-items:flex-end; }.hint { max-width:100px; text-align:right; }.face-up-row,.face-down-row,.hand-row { gap:8px; }.row-label { width:75px; font-size:8px; }.cards-row { gap:5px; }.hand-row .card { width:49px; height:70px; padding:4px; }.hand-row .card-corner { top:4px; left:5px; font-size:10px; }.hand-row .card-suit { font-size:19px; }.hand-row .card-corner-bottom { bottom:4px; right:5px; }.card-small { width:49px; height:70px; }.card-small .card-corner { top:4px; left:5px; font-size:10px; }.card-small .card-suit { font-size:20px; }.card-small .card-corner-bottom { bottom:4px; right:5px; }.pile-label { transform:translate(-44px,17px) rotate(180deg); }.table-message { bottom:13px; } footer { padding:25px 14px 15px; } footer span:nth-child(2) { display:none; } }
+
+.seat-position-0 { left:4%; top:50%; }
+.seat-position-1 { left:24%; bottom:-18px; transform:translate(-50%,50%); }
+.seat-position-2 { left:50%; bottom:-24px; transform:translate(-50%,50%); }
+.seat-position-3 { right:6%; top:50%; transform:translate(50%,-50%); }
+.seat-position-4 { left:72%; top:-12px; transform:translate(-50%,-50%); }
+.seat-position-5 { left:28%; top:-12px; transform:translate(-50%,-50%); }
+.deal-card { animation:deal-card-fly .28s ease-out forwards; box-shadow:0 0 0 4px #e9b94944,0 9px 20px #05090888; }
+.deal-label { position:absolute; left:50%; bottom:24px; transform:translateX(-50%); color:#dfe6e1; background:#142422dd; border:1px solid #5d806f; border-radius:99px; padding:7px 12px; font-size:10px; white-space:nowrap; }
+@keyframes deal-card-fly { from { opacity:0; transform:translate(-50%,-50%) scale(.7) rotate(-12deg); } to { opacity:1; transform:translate(calc(-50% + var(--deal-x)),calc(-50% + var(--deal-y))) scale(1) rotate(8deg); } }
+.waiting-host { color:#e9b949; font-size:11px; }

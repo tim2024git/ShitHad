@@ -40,8 +40,9 @@ webSocketServer.on('connection', (socket) => {
       return
     }
 
-    const roomCode = message.roomCode.trim().toUpperCase().slice(0, 8)
+    let roomCode = message.roomCode.trim().toUpperCase().slice(0, 8)
     const name = message.name.trim().slice(0, 20)
+    if (message.type === 'room:create') roomCode = `SH${Math.random().toString(36).slice(2, 6).toUpperCase()}`
     if (!roomCode || !name) {
       socket.send(JSON.stringify({ type: 'error', message: 'Bitte Raumcode und Namen eingeben.' }))
       return
@@ -58,7 +59,7 @@ webSocketServer.on('connection', (socket) => {
     }
 
     const room = rooms.get(roomCode) ?? new Map()
-    if (room.size >= 4) {
+    if (room.size >= 6) {
       socket.send(JSON.stringify({ type: 'error', message: 'Dieser Raum ist bereits voll.' }))
       return
     }
@@ -66,7 +67,7 @@ webSocketServer.on('connection', (socket) => {
     const id = crypto.randomUUID()
     membership = room
     membershipId = id
-    room.set(id, { id, name, socket })
+    room.set(id, { id, name, socket, host: room.size === 0 })
     rooms.set(roomCode, room)
     socket.send(JSON.stringify({ type: 'room:joined', roomCode, playerId: id }))
     broadcast(room)

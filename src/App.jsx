@@ -42,12 +42,19 @@ function App() {
   const socketRef = useRef(null)
   const [roomMode, setRoomMode] = useState('join')
   const [isConnecting, setIsConnecting] = useState(false)
+  const [myPlayerId, setMyPlayerId] = useState(null)
+  const [dealingStep, setDealingStep] = useState(0)
+  const dealingTimerRef = useRef(null)
   const player = game?.players[0]
   const topCard = game ? effectiveTop(game.discardPile) : null
   const currentTurnName = game?.currentPlayer === 0
     ? playerName
     : roomPlayers[game?.currentPlayer]?.name ?? game?.players[game?.currentPlayer]?.name ?? 'Nächster Spieler'
   const isPlayable = game?.currentPlayer === 0 && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
+  const isHost = roomPlayers.find((roomPlayer) => roomPlayer.id === myPlayerId)?.host === true
+  const dealingPlayerCount = Math.max(3, Math.min(6, roomPlayers.length || 3))
+  const dealingTarget = dealingStep % dealingPlayerCount
+  const dealingRound = Math.floor(dealingStep / dealingPlayerCount)
 
   const connectOnlineRoom = async (mode, requestedCode) => {
       setIsConnecting(true)
@@ -63,6 +70,7 @@ function App() {
         if (!result.ok) throw new Error(payload.message ?? 'Raum konnte nicht geöffnet werden.')
         setJoinCode(payload.roomCode)
         setRoomPlayers(payload.players)
+        setMyPlayerId(payload.playerId)
         setConnection('connected')
         setPhase('lobby')
         window.clearInterval(socketRef.current)
@@ -101,6 +109,8 @@ function App() {
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data)
       if (message.type === 'room:joined') {
+        setMyPlayerId(message.playerId)
+        if (message.roomCode) setJoinCode(message.roomCode)
         setConnection('connected')
         setPhase('lobby')
       }
@@ -118,17 +128,34 @@ function App() {
   }
 
   useEffect(() => () => {
+    window.clearInterval(dealingTimerRef.current)
     if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
     else socketRef.current?.close()
     socketRef.current = null
   }, [])
 
   const startGame = () => {
+    if (!isHost) return
+    setDealingStep(0)
     setPhase('dealing')
-    window.setTimeout(() => {
-      setGame(dealGame(Math.max(3, Math.min(4, roomPlayers.length || 4))))
-      setPhase('game')
-    }, 1800)
+    window.clearInterval(dealingTimerRef.current)
+    const totalSteps = Math.max(3, Math.min(6, roomPlayers.length || 1)) * 9
+    let step = 0
+    dealingTimerRef.current = window.setInterval(() => {
+      step += 1
+      setDealingStep(step)
+      if (step >= totalSteps) {
+        window.clearInterval(dealingTimerRef.current)
+        setGame(dealGame(Math.max(3, Math.min(6, roomPlayers.length || 3))))
+        setPhase('game')
+      }
+    }, 145)
+  }
+
+  const dealingLabel = () => {
+    if (dealingRound < 3) return `Verdeckte Karte ${dealingRound + 1} von 3`
+    if (dealingRound < 6) return `Offene Karte ${dealingRound - 2} von 3`
+    return `Handkarte ${dealingRound - 5} von 3`
   }
 
   const createRoom = () => {
@@ -177,7 +204,7 @@ function App() {
             <div className="start-actions"><button className="primary-action" disabled={isConnecting} onClick={() => connectRoom('join')}>{isConnecting ? 'Verbinde …' : 'Raum betreten'}</button><button className="secondary-action" disabled={isConnecting} onClick={createRoom}>{isConnecting ? 'Bitte warten …' : 'Raum erstellen'}</button></div>
           </div>
           {connectionMessage && <p className="connection-error">{connectionMessage}</p>}
-          <span className="start-note">Gleicher Raum · bis zu 4 Spieler</span>
+          <span className="start-note">Gleicher Raum · bis zu 6 Spieler</span>
         </div>
       </main>
     )
@@ -194,10 +221,10 @@ function App() {
           <p className="start-copy">Warte, bis alle da sind. Wenn ihr bereit seid, startet die Runde.</p>
           <div className="lobby-table">
             <div className="lobby-table-center"><span className="brand-mark">S</span><span>SHITHAD</span></div>
-            {seatedPlayers.map((seatedPlayer, index) => <div className={`seat seat-${index}`} key={seatedPlayer.id}><Avatar player={{ initials: seatedPlayer.name.slice(0, 1).toUpperCase(), color: index === 0 ? 'purple' : opponents[(index - 1) % opponents.length].color }} /><strong>{seatedPlayer.name}</strong>{index === 0 && <span className="host-label">Du</span>}</div>)}
-            {phase === 'dealing' && <div className="deal-animation" aria-label="Karten werden ausgeteilt">{[0, 1, 2, 3, 4, 5].map((card) => <span className="deal-card" key={card}>S</span>)}</div>}
+            {seatedPlayers.map((seatedPlayer, index) => <div className={`seat seat-position-${index}`} key={seatedPlayer.id}><Avatar player={{ initials: seatedPlayer.name.slice(0, 1).toUpperCase(), color: index === 0 ? 'purple' : opponents[(index - 1) % opponents.length].color }} /><strong>{seatedPlayer.name}</strong>{seatedPlayer.host && <span className="host-label">Host · teilt aus</span>}</div>)}
+            {phase === 'dealing' && <div className="deal-animation" aria-label="Karten werden ausgeteilt"><span className="deal-card deal-card-active" style={{ '--deal-x': `${[-235, -120, 0, 235, 125, -125][dealingTarget]}px`, '--deal-y': `${[0, 125, 145, 0, -105, -105][dealingTarget]}px` }}>S</span><span className="deal-label">{dealingLabel()} · {seatedPlayers[dealingTarget]?.name}</span></div>}
           </div>
-          <div className="lobby-footer"><span><span className="live-dot" /> {seatedPlayers.length}/4 am Tisch</span><button className="primary-action" disabled={phase === 'dealing'} onClick={startGame}>{phase === 'dealing' ? 'Karten werden ausgeteilt …' : 'Spiel starten'}</button></div>
+          <div className="lobby-footer"><span><span className="live-dot" /> {seatedPlayers.length}/6 am Tisch</span>{isHost ? <button className="primary-action" disabled={phase === 'dealing' || seatedPlayers.length < 3} onClick={startGame}>{phase === 'dealing' ? 'Karten werden ausgeteilt …' : seatedPlayers.length < 3 ? 'Mindestens 3 Spieler' : 'Spiel starten'}</button> : <span className="waiting-host">Warte auf den Host</span>}</div>
         </section>
       </main>
     )
