@@ -70,10 +70,25 @@ export async function POST(request) {
 
 export async function GET(request) {
   const code = codeOf(new URL(request.url).searchParams.get('roomCode'))
-  if (!code) return json({ message: 'Raumcode fehlt.' }, 400)
   try {
     const sql = await database()
     if (!sql) return json({ message: 'Die Neon-Datenbank ist in Vercel noch nicht als DATABASE_URL eingerichtet.' }, 503)
+    if (!code) {
+      const rows = await sql`
+        SELECT code, players, phase
+        FROM shithad_rooms
+        WHERE expires_at > NOW()
+        ORDER BY created_at DESC
+        LIMIT 50
+      `
+      return json({
+        rooms: rows.map((room) => ({
+          roomCode: room.code,
+          players: room.players,
+          phase: room.phase,
+        })),
+      })
+    }
     const rows = await sql`SELECT players, host_id, phase, started_at FROM shithad_rooms WHERE code = ${code} AND expires_at > NOW()`
     return rows[0] ? json({ roomCode: code, players: rows[0].players, hostId: rows[0].host_id, phase: rows[0].phase, startedAt: rows[0].started_at }) : json({ message: 'Raum nicht gefunden.' }, 404)
   } catch {

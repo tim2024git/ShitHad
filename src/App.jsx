@@ -39,6 +39,8 @@ function App() {
   const [connection, setConnection] = useState('offline')
   const [roomPlayers, setRoomPlayers] = useState([])
   const [connectionMessage, setConnectionMessage] = useState('')
+  const [availableRooms, setAvailableRooms] = useState([])
+  const [roomsLoading, setRoomsLoading] = useState(true)
   const socketRef = useRef(null)
   const [roomMode, setRoomMode] = useState('join')
   const [isConnecting, setIsConnecting] = useState(false)
@@ -71,6 +73,20 @@ function App() {
     setMyPlayerId(null)
     setConnection('offline')
     setConnectionMessage('')
+  }
+
+  const loadRooms = async () => {
+    try {
+      const response = await fetch('/api/rooms')
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.message ?? 'Räume konnten nicht geladen werden.')
+      setAvailableRooms(payload.rooms ?? [])
+      setConnectionMessage('')
+    } catch (error) {
+      setConnectionMessage(error.message)
+    } finally {
+      setRoomsLoading(false)
+    }
   }
 
   const beginDealing = (startedAt) => {
@@ -181,6 +197,13 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (phase !== 'home') return undefined
+    loadRooms()
+    const roomsTimer = window.setInterval(loadRooms, 3000)
+    return () => window.clearInterval(roomsTimer)
+  }, [phase])
+
+  useEffect(() => {
     const saved = localStorage.getItem('shithad-session')
     if (!saved) return undefined
     try {
@@ -260,11 +283,14 @@ function App() {
           <p className="start-copy">Erstelle einen Raum oder tritt mit deinen Freunden bei. Alle sitzen gemeinsam am Tisch.</p>
           <div className="start-form">
             <label>Dein Name<input value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="z. B. Alex" maxLength={20} /></label>
-            <label>Raumcode<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="z. B. SH7HAD" maxLength={8} /></label>
-            <div className="start-actions"><button className="primary-action" disabled={isConnecting} onClick={() => connectRoom('join')}>{isConnecting ? 'Verbinde …' : 'Raum betreten'}</button><button className="secondary-action" disabled={isConnecting} onClick={createRoom}>{isConnecting ? 'Bitte warten …' : 'Raum erstellen'}</button></div>
+            <div className="room-list">
+              <div className="room-list-header"><span>Offene Räume</span><button className="refresh-rooms" onClick={loadRooms}>Aktualisieren</button></div>
+              {roomsLoading ? <p className="room-empty">Räume werden geladen …</p> : availableRooms.length === 0 ? <p className="room-empty">Noch keine Räume vorhanden.</p> : availableRooms.map((room) => <div className="room-row" key={room.roomCode}><div><strong>Spielraum</strong><span>{room.players.length}/6 Spieler · {room.phase === 'lobby' ? 'Wartet auf Spieler' : 'Spiel läuft'}</span></div><button className="join-room-button" disabled={isConnecting || room.players.length >= 6 || room.phase !== 'lobby'} onClick={() => { setJoinCode(room.roomCode); connectRoom('join', room.roomCode) }}>{room.phase !== 'lobby' ? 'Läuft' : room.players.length >= 6 ? 'Voll' : 'Beitreten'}</button></div>)}
+            </div>
+            <div className="start-actions"><button className="secondary-action" disabled={isConnecting} onClick={createRoom}>{isConnecting ? 'Bitte warten …' : 'Raum erstellen'}</button></div>
           </div>
           {connectionMessage && <p className="connection-error">{connectionMessage}</p>}
-          <span className="start-note">Gleicher Raum · bis zu 6 Spieler</span>
+          <span className="start-note">Offene Räume · bis zu 6 Spieler pro Raum</span>
         </div>
       </main>
     )
