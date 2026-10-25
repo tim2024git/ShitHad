@@ -117,13 +117,42 @@ function App() {
   }
 
   const applyRoomState = (payload) => {
+    const previousRoomState = roomStateRef.current
     setJoinCode(payload.roomCode ?? joinCode)
     setRoomPlayers(payload.players ?? [])
     if (payload.playerId) {
       setMyPlayerId(payload.playerId)
       localStorage.setItem('shithad-session', JSON.stringify({ roomCode: payload.roomCode, playerName, playerId: payload.playerId }))
     }
-    roomStateRef.current = payload
+    if (payload.phase === 'game' && !game) {
+      setGame(dealGame(Math.max(3, Math.min(6, (payload.players ?? []).length || 3)), payload.startedAt ?? 'room', payload.players))
+      setPhase('game')
+    }
+    if (payload.gameState?.handCounts) {
+      setGame((currentGame) => {
+        if (!currentGame) return currentGame
+        const action = payload.gameState.lastAction
+        const previousAction = previousRoomState?.gameState?.lastAction
+        let drawPile = currentGame.drawPile
+        const players = currentGame.players.map((entry) => {
+          const targetCount = payload.gameState.handCounts[entry.id] ?? entry.hand.length
+          let hand = entry.hand
+          if (action && action.at !== previousAction?.at && action.playerId === entry.id) {
+            const playedIndex = hand.findIndex((card) => card.id === action.card?.id)
+            if (playedIndex >= 0) {
+              const playedCard = hand[playedIndex]
+              hand = hand.filter((_, index) => index !== playedIndex)
+              while (hand.length < targetCount && drawPile.length && playedCard.value !== 10) {
+                hand = [...hand, drawPile[drawPile.length - 1]]
+                drawPile = drawPile.slice(0, -1)
+              }
+            }
+          }
+          return { ...entry, hand: hand.slice(0, targetCount) }
+        })
+        return { ...currentGame, drawPile, players }
+      })
+    }
     if (payload.gameState?.discardPile) {
       setGame((currentGame) => currentGame ? {
         ...currentGame,
@@ -131,6 +160,7 @@ function App() {
         currentPlayer: Math.max(0, (payload.players ?? []).findIndex((entry) => entry.id === payload.gameState.currentPlayerId)),
       } : currentGame)
     }
+    roomStateRef.current = payload
     if (payload.phase === 'dealing' && payload.startedAt) beginDealing(payload.startedAt)
   }
 
@@ -148,7 +178,7 @@ function App() {
         if (!result.ok) throw new Error(payload.message ?? 'Raum konnte nicht geöffnet werden.')
         applyRoomState(payload)
         setConnection('connected')
-        setPhase('lobby')
+        setPhase(payload.phase === 'game' ? 'game' : payload.phase === 'dealing' ? 'dealing' : 'lobby')
         window.clearInterval(socketRef.current)
         socketRef.current = window.setInterval(async () => {
           const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}&playerId=${encodeURIComponent(payload.playerId ?? myPlayerId ?? '')}`)
@@ -275,6 +305,7 @@ function App() {
     while (remainingHand.length < 3 && nextDrawPile.length && card.value !== 10) remainingHand.push(nextDrawPile.pop())
     const nextPlayerIndex = (game.currentPlayer + (card.value === 11 ? 2 : 1)) % game.players.length
     const updatedPlayers = game.players.map((entry, index) => index === playerIndex ? { ...entry, hand: remainingHand } : entry)
+    const handCounts = Object.fromEntries(updatedPlayers.map((entry) => [entry.id, entry.hand.length]))
     setGame({
       ...game,
       players: updatedPlayers,
@@ -292,7 +323,8 @@ function App() {
           playerId: myPlayerId,
           nextPlayerId: roomPlayers[nextPlayerIndex]?.id ?? game.players[nextPlayerIndex]?.id,
           card,
-          players: updatedPlayers.map((entry) => ({ id: entry.id, name: entry.name, host: entry.host, lastSeen: new Date().toISOString() })),
+          handCounts,
+          players: updatedPlayers.map((entry) => ({ id: entry.id, name: entry.name, host: entry.host, handCount: entry.hand.length })),
         }),
       }).catch((error) => setConnectionMessage(error.message))
     }
@@ -368,7 +400,7 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
-            {game.players.map((tablePlayer, index) => { const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-seat-${index}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}</div></div> })}
+            {game.players.map((tablePlayer, index) => { const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-seat-${index}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{index === playerIndex && phase !== 'dealing' && <div className="table-hand-cards">{tablePlayer.hand.map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={() => setSelectedCard(handIndex)} className={selectedCard === handIndex ? 'selected-card' : ''} />)}</div>}</div></div> })}
 
             <div className="table-center">
               <div className="pile-area">
@@ -384,19 +416,7 @@ function App() {
             <div className="table-message"><span className="message-dot" /> {phase === 'dealing' ? `${dealingLabel()} · ${roomPlayers[dealingTarget]?.name ?? game.players[dealingTarget]?.name ?? ''}` : `${currentTurnName} ist dran`}</div>
           </div>
 
-          <div className={`your-area ${phase === 'dealing' ? 'your-area-dealing' : ''}`}>
-            <div className="your-heading"><div className="your-player"><Avatar player={{ initials: playerName.slice(0, 1).toUpperCase(), color: 'purple' }} /><div><strong>{playerName}</strong><span>{player.hand.length} Karten auf der Hand</span></div></div><span className="hint">Wähle eine Karte zum Ablegen</span></div>
-            <div className="face-up-row">
-              <span className="row-label">Deine offenen Karten</span>
-              <div className="cards-row">{visibleCards(player.faceUp, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 3)) : 3).map((card) => <Card key={card.id} {...card} small />)}</div>
-            </div>
-            <div className="face-down-row">
-              <span className="row-label">Deine verdeckten Karten</span>
-              <div className="cards-row">{visibleCards(player.faceDown, phase === 'dealing' ? Math.min(3, dealtCardsForPlayer(playerIndex)) : 3).map((card) => <Card key={card.id} faceDown small />)}</div>
-            </div>
-            <div className="hand-row"><span className="row-label">Handkarten</span><div className="cards-row">{visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, index) => <Card key={card.id} {...card} onClick={() => setSelectedCard(index)} />)}</div></div>
-            {selectedCard !== null && <button className="play-button" disabled={!isPlayable} onClick={playCard}>{isPlayable ? 'Karte ablegen' : 'Nicht spielbar'}</button>}
-          </div>
+          {selectedCard !== null && <button className="play-button" disabled={!isPlayable} onClick={playCard}>{isPlayable ? 'Karte ablegen' : 'Nicht spielbar'}</button>}
         </div>
 
       </section>

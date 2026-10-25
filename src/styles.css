@@ -47,6 +47,9 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .table-player-cards .card-small .card-corner-bottom { bottom:4px; right:4px; }
 .table-player-cards .card-back { border-width:2px; }
 .table-player-cards .card-back-mark { width:18px; height:25px; font-size:12px; }
+.table-hand-cards { display:flex; gap:4px; margin-left:10px; }
+.table-hand-cards .card { width:52px; height:73px; cursor:pointer; }
+.table-hand-cards .selected-card { transform:translateY(-8px); outline:2px solid #e9b949; }
 .table-player-cards .card:hover { transform:translateY(-6px); z-index:3; }
 .dealing-card { animation:card-land .42s ease-out both; }
 @keyframes card-land { from { opacity:0; transform:translateY(-24px) scale(.88) rotate(-4deg); } to { opacity:1; transform:translateY(0) scale(1) rotate(0); } }
