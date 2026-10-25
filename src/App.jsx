@@ -297,10 +297,11 @@ function App() {
     connectRoom('create', '')
   }
 
-  const playCard = () => {
-    if (!isPlayable) return
-    const card = player.hand[selectedCard]
-    const remainingHand = player.hand.filter((_, index) => index !== selectedCard)
+  const playCard = (cardIndex = selectedCard) => {
+    const selected = player?.hand[cardIndex]
+    if (!game || !player || cardIndex === null || !selected || game.currentPlayer !== playerIndex || !canPlay(selected, game.discardPile)) return
+    const card = selected
+    const remainingHand = player.hand.filter((_, index) => index !== cardIndex)
     const nextDrawPile = [...game.drawPile]
     while (remainingHand.length < 3 && nextDrawPile.length && card.value !== 10) remainingHand.push(nextDrawPile.pop())
     const nextPlayerIndex = (game.currentPlayer + (card.value === 11 ? 2 : 1)) % game.players.length
@@ -400,7 +401,7 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
-            {game.players.map((tablePlayer, index) => { const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-seat-${index}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{index === playerIndex && phase !== 'dealing' && <div className="table-hand-cards">{tablePlayer.hand.map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={() => setSelectedCard(handIndex)} className={selectedCard === handIndex ? 'selected-card' : ''} />)}</div>}</div></div> })}
+            {game.players.map((tablePlayer, index) => { const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-seat-${index}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}</div></div> })}
 
             <div className="table-center">
               <div className="pile-area">
@@ -414,9 +415,11 @@ function App() {
             </div>
 
             <div className="table-message"><span className="message-dot" /> {phase === 'dealing' ? `${dealingLabel()} · ${roomPlayers[dealingTarget]?.name ?? game.players[dealingTarget]?.name ?? ''}` : `${currentTurnName} ist dran`}</div>
+            <div className="bottom-hand-area">
+              {phase !== 'dealing' && player?.hand.map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={() => playCard(handIndex)} />)}
+            </div>
           </div>
 
-          {selectedCard !== null && <button className="play-button" disabled={!isPlayable} onClick={playCard}>{isPlayable ? 'Karte ablegen' : 'Nicht spielbar'}</button>}
         </div>
 
       </section>
