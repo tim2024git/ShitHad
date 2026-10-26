@@ -105,18 +105,28 @@ export async function POST(request) {
       const gamePlayers = room.game_state.players ?? []
       const currentIndex = gamePlayers.findIndex((player) => player.id === payload.playerId)
       if (currentIndex < 0) return json({ message: 'Spieler ist in diesem Spiel nicht vorhanden.' }, 403)
+      const currentPlayer = gamePlayers[currentIndex]
+      const currentHand = currentPlayer.hand ?? []
+      const playedIndex = currentHand.findIndex((card) => card.id === payload.card?.id)
+      if (playedIndex < 0) return json({ message: 'Diese Karte ist nicht mehr in deiner Hand.' }, 409)
+      const remainingHand = currentHand.filter((_, index) => index !== playedIndex)
+      const drawPile = [...(room.game_state.drawPile ?? [])]
+      if (payload.card?.value !== 10) {
+        while (remainingHand.length < 3 && drawPile.length) remainingHand.push(drawPile.pop())
+      }
+      const updatedGamePlayers = gamePlayers.map((player, index) => index === currentIndex ? { ...player, hand: remainingHand } : player)
       const nextPlayerIndex = (currentIndex + (payload.card?.value === 11 ? 2 : 1)) % gamePlayers.length
       const gameState = {
         discardPile: payload.card?.value === 10 ? [] : [...(room.game_state.discardPile ?? []), payload.card],
         currentPlayerId: gamePlayers[nextPlayerIndex]?.id ?? payload.playerId,
-        handCounts: payload.handCounts ?? room.game_state.handCounts ?? {},
-        players: payload.gamePlayers ?? room.game_state.players ?? [],
-        drawPile: payload.drawPile ?? room.game_state.drawPile ?? [],
+        handCounts: Object.fromEntries(updatedGamePlayers.map((player) => [player.id, player.hand.length])),
+        players: updatedGamePlayers,
+        drawPile,
         lastAction: { type: 'play', playerId: payload.playerId, card: payload.card, at: new Date().toISOString() },
       }
       const players = (payload.players ?? room.players).map((player) => ({ id: player.id, name: player.name, host: player.host, handCount: gameState.handCounts[player.id] ?? player.handCount ?? 3, lastSeen: new Date().toISOString() }))
       await sql`UPDATE shithad_rooms SET phase = 'game', game_state = ${JSON.stringify(gameState)}::jsonb, players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes' WHERE code = ${code}`
-      return json({ roomCode: code, gameState: visibleGameState(gameState, payload.playerId), players, phase: 'game' })
+      return json({ roomCode: code, playerId: payload.playerId, gameState: visibleGameState(gameState, payload.playerId), players, phase: 'game' })
     }
     if (payload.mode === 'create' && room.players.length) return json({ message: 'Dieser Raumcode wird bereits verwendet.' }, 409)
     const duplicateName = room.players.some((player) => player.name.toLocaleLowerCase() === name.toLocaleLowerCase() && player.id !== payload.playerId)
