@@ -36,6 +36,7 @@ function Avatar({ player, size = '' }) {
 function App() {
   const [phase, setPhase] = useState('home')
   const [game, setGame] = useState(null)
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [animatingCard, setAnimatingCard] = useState(null)
   const [showHelp, setShowHelp] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -231,6 +232,12 @@ function App() {
     if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
     else socketRef.current?.close()
     socketRef.current = null
+  }, [])
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', updateViewportWidth)
+    return () => window.removeEventListener('resize', updateViewportWidth)
   }, [])
 
   useEffect(() => {
@@ -515,7 +522,12 @@ function App() {
             </div>
             {animatingCard && <div className="played-card-animation"><Card rank={animatingCard.rank} suit={animatingCard.suit} /></div>}
 
-            <div className={`bottom-hand-area ${player?.hand.length > 3 ? 'has-many-cards' : ''} ${isTurn(playerIndex) ? 'is-turn' : ''}`}>
+            <div
+              className={`bottom-hand-area ${player?.hand.length > 3 ? 'has-many-cards' : ''} ${isTurn(playerIndex) ? 'is-turn' : ''}`}
+              style={player?.hand.length > 3 ? {
+                '--hand-step': `${Math.min(68, Math.max(3, (Math.min(viewportWidth - 56, 720) - 68) / (player.hand.length - 1)))}px`,
+              } : undefined}
+            >
               {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : player.hand.length).map((card, handIndex) => {
                 const playable = isMyTurn && turnZone === 'hand' && canPlay(card, game.discardPile)
                 return <Card key={`hand-${card.id}`} {...card} onClick={playable ? () => playCard('hand', handIndex) : undefined} className={`${phase === 'dealing' ? 'dealing-card' : ''} ${swapClass(card)} ${playable ? 'playable' : ''}`} extraProps={swapCardProps('hand', card)} />

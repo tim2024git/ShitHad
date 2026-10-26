@@ -210,7 +210,9 @@ footer { max-width: 1500px; padding: 38px 3.3vw 20px; margin: 0 auto; display:fl
 .bottom-hand-area.has-many-cards::-webkit-scrollbar { height:6px; }
 .bottom-hand-area.has-many-cards::-webkit-scrollbar-thumb { background:#6fd08c; border-radius:99px; }
 @media (max-width: 700px) {
-  .table .bottom-hand-area.has-many-cards { width:100%; justify-content:flex-start; }
+  .table .bottom-hand-area.has-many-cards { width:100%; justify-content:center; gap:0; overflow:visible; padding:7px 0; }
+  .table .bottom-hand-area.has-many-cards .card { flex:0 0 68px; width:68px; }
+  .table .bottom-hand-area.has-many-cards .card + .card { margin-left:calc(var(--hand-step) - 68px); }
 }
 .card.playable { outline:3px solid #6fd08c; box-shadow:0 0 14px #4fbf7a99; }
 .card.playable:hover { box-shadow:0 0 20px #4fbf7acc; }
