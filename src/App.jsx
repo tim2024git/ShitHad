@@ -401,6 +401,18 @@ function App() {
 
   const swapClass = (card) => !canSwap ? '' : `swap-card ${swapSelection?.id === card.id || dragState?.card.id === card.id ? 'swap-selected' : ''}`
 
+  const cardStacks = (owner, dealt, dealing, own = false) => {
+    const down = visibleCards(owner.faceDown, Math.min(3, dealt))
+    const up = visibleCards(owner.faceUp, Math.max(0, Math.min(3, dealt - 3)))
+    const dealingClass = dealing ? 'dealing-card' : ''
+    return [0, 1, 2].map((slot) => (
+      <div className="card-stack" key={`stack-${slot}`}>
+        {down[slot] && <Card key={`down-${down[slot].id}`} faceDown small className={`stack-down ${dealingClass}`} />}
+        {up[slot] && <Card key={`up-${up[slot].id}`} {...up[slot]} small className={`stack-up ${dealingClass} ${own ? swapClass(up[slot]) : ''}`} extraProps={own ? swapCardProps('faceUp', up[slot]) : {}} />}
+      </div>
+    ))
+  }
+
   const copyRoom = async () => {
     try {
       await navigator.clipboard.writeText(joinCode)
@@ -471,7 +483,7 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
-            {game.players.filter((tablePlayer) => tablePlayer.id !== myPlayerId).map((tablePlayer, tableIndex) => { const index = game.players.findIndex((entry) => entry.id === tablePlayer.id); const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-opponent-seat table-opponent-${tableIndex}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.swapping && phase !== 'dealing' ? (game.ready?.[tablePlayer.id] && <span className="turn-chip">bereit</span>) : game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}</div></div> })}
+            {game.players.filter((tablePlayer) => tablePlayer.id !== myPlayerId).map((tablePlayer, tableIndex) => { const index = game.players.findIndex((entry) => entry.id === tablePlayer.id); const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-opponent-seat table-opponent-${tableIndex}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.swapping && phase !== 'dealing' ? (game.ready?.[tablePlayer.id] && <span className="turn-chip">bereit</span>) : game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{cardStacks(tablePlayer, phase === 'dealing' ? dealt : 9, phase === 'dealing')}</div></div> })}
 
             <div className="table-center">
               <div className="pile-area">
@@ -489,8 +501,7 @@ function App() {
               {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={phase === 'dealing' || isSwapping ? undefined : () => playCard(handIndex)} className={`${phase === 'dealing' ? 'dealing-card' : ''} ${swapClass(card)}`} extraProps={swapCardProps('hand', card)} />)}
             </div>
             <div className="bottom-public-area">
-              {player && visibleCards(player.faceDown, phase === 'dealing' ? Math.min(3, dealtCardsForPlayer(playerIndex)) : 3).map((card) => <Card key={`own-down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}
-              {player && visibleCards(player.faceUp, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 3)) : 3).map((card) => <Card key={`own-up-${card.id}`} {...card} small className={`${phase === 'dealing' ? 'dealing-card' : ''} ${swapClass(card)}`} extraProps={swapCardProps('faceUp', card)} />)}
+              {player && cardStacks(player, phase === 'dealing' ? dealtCardsForPlayer(playerIndex) : 9, phase === 'dealing', true)}
             </div>
           </div>
           {isSwapping && (

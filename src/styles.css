@@ -147,3 +147,16 @@ footer { max-width: 1500px; padding: 38px 3.3vw 20px; margin: 0 auto; display:fl
 .swap-bar { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:14px auto 0; max-width:720px; padding:10px 14px; border-radius:10px; background:#1a2025; color:#c9d1d9; font-size:12px; line-height:1.4; }
 .swap-bar .primary-action { width:auto; margin:0; padding:9px 20px; flex-shrink:0; }
 .drag-ghost { position:fixed; transform:translate(-50%,-50%) rotate(6deg); pointer-events:none; z-index:100; opacity:.92; filter:drop-shadow(0 8px 14px #000a); }
+.card-stack { position:relative; width:42px; height:85px; flex-shrink:0; }
+.table-player-cards, .bottom-public-area { gap:9px; padding-left:0; align-items:flex-end; }
+.table-player-cards .card-stack .card-small, .bottom-public-area .card-stack .card-small { position:absolute; left:0; margin-left:0; }
+.card-stack .stack-down { bottom:0; z-index:1; }
+.card-stack .stack-up { top:0; z-index:2; }
+.bottom-public-area .card-stack .swap-card { pointer-events:auto; }
+.bottom-hand-area { bottom:125px; }
+@media (max-width: 600px) {
+  .card-stack { width:29px; height:59px; }
+  .table-player-cards { max-width:none; padding-left:0; gap:6px; }
+  .bottom-public-area { padding-left:0; gap:6px; }
+  .bottom-hand-area { bottom:78px; }
+}
