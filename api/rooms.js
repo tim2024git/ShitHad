@@ -102,9 +102,13 @@ export async function POST(request) {
     if (payload.action === 'play') {
       if (!['dealing', 'game'].includes(room.phase)) return json({ message: 'Das Spiel hat noch nicht begonnen.' }, 409)
       if (room.game_state?.currentPlayerId !== payload.playerId) return json({ message: 'Du bist nicht an der Reihe.' }, 403)
+      const gamePlayers = room.game_state.players ?? []
+      const currentIndex = gamePlayers.findIndex((player) => player.id === payload.playerId)
+      if (currentIndex < 0) return json({ message: 'Spieler ist in diesem Spiel nicht vorhanden.' }, 403)
+      const nextPlayerIndex = (currentIndex + (payload.card?.value === 11 ? 2 : 1)) % gamePlayers.length
       const gameState = {
         discardPile: payload.card?.value === 10 ? [] : [...(room.game_state.discardPile ?? []), payload.card],
-        currentPlayerId: payload.nextPlayerId,
+        currentPlayerId: gamePlayers[nextPlayerIndex]?.id ?? payload.playerId,
         handCounts: payload.handCounts ?? room.game_state.handCounts ?? {},
         players: payload.gamePlayers ?? room.game_state.players ?? [],
         drawPile: payload.drawPile ?? room.game_state.drawPile ?? [],

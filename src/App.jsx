@@ -54,7 +54,6 @@ function App() {
   const [dealingStep, setDealingStep] = useState(0)
   const dealingTimerRef = useRef(null)
   const roomStateRef = useRef(null)
-  const pendingPlayRef = useRef(null)
   const pollInFlightRef = useRef(false)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
@@ -71,7 +70,7 @@ function App() {
   const dealingRound = Math.floor(dealingStep / dealingPlayerCount)
   const seatColors = ['purple', 'coral', 'blue', 'yellow', 'coral', 'blue']
   const leaveRoom = async () => {
-    if (joinCode && myPlayerId && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    if (joinCode && myPlayerId) {
       await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -208,42 +207,7 @@ function App() {
   const connectRoom = (mode = roomMode, requestedCode = joinCode) => {
     if (typeof socketRef.current === 'number') window.clearInterval(socketRef.current)
     else socketRef.current?.close()
-    const configuredSocketUrl = import.meta.env.VITE_WS_URL
-    if (!configuredSocketUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     connectOnlineRoom(mode, requestedCode)
-    return
-    }
-
-    const socketUrl = configuredSocketUrl
-      ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:3001`
-    const socket = new WebSocket(socketUrl)
-    socketRef.current = socket
-    setConnection('connecting')
-    setConnectionMessage('')
-    socket.addEventListener('open', () => socket.send(JSON.stringify({
-      type: mode === 'create' ? 'room:create' : 'room:join',
-      roomCode: requestedCode,
-      name: playerName,
-    })))
-    socket.addEventListener('message', (event) => {
-      const message = JSON.parse(event.data)
-      if (message.type === 'room:joined') {
-        setMyPlayerId(message.playerId)
-        if (message.roomCode) setJoinCode(message.roomCode)
-        setConnection('connected')
-        setPhase('lobby')
-      }
-      if (message.type === 'room:update') setRoomPlayers(message.players)
-      if (message.type === 'error') {
-        setConnection('offline')
-        setConnectionMessage(message.message)
-        socket.close()
-      }
-    })
-    socket.addEventListener('error', () => {
-      setConnection('offline')
-      setConnectionMessage('Spielserver nicht erreichbar. Prüfe VITE_WS_URL in Vercel oder starte lokal npm run dev.')
-    })
   }
 
   useEffect(() => () => {
@@ -329,35 +293,27 @@ function App() {
     const remainingHand = player.hand.filter((_, index) => index !== cardIndex)
     const nextDrawPile = [...game.drawPile]
     while (remainingHand.length < 3 && nextDrawPile.length && card.value !== 10) remainingHand.push(nextDrawPile.pop())
-    const nextPlayerIndex = (game.currentPlayer + (card.value === 11 ? 2 : 1)) % game.players.length
     const updatedPlayers = game.players.map((entry, index) => index === playerIndex ? { ...entry, hand: remainingHand } : entry)
     const handCounts = Object.fromEntries(updatedPlayers.map((entry) => [entry.id, entry.hand.length]))
-    setGame({
-      ...game,
-      players: updatedPlayers,
-      drawPile: nextDrawPile,
-      discardPile: card.value === 10 ? [] : [...game.discardPile, card],
-      currentPlayer: nextPlayerIndex,
-    })
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      fetch('/api/rooms', {
+    fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'play',
           roomCode: joinCode,
           playerId: myPlayerId,
-          nextPlayerId: game.players[nextPlayerIndex]?.id,
           card,
           handCounts,
           gamePlayers: updatedPlayers,
           drawPile: nextDrawPile,
           players: updatedPlayers.map((entry) => ({ id: entry.id, name: entry.name, host: entry.host, handCount: entry.hand.length })),
         }),
+      }).then(async (response) => {
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.message ?? 'Karte konnte nicht gelegt werden.')
+        applyRoomState(payload)
       }).catch((error) => setConnectionMessage(error.message))
-    }
     setSelectedCard(null)
-    pendingPlayRef.current = { playerId: myPlayerId, cardId: card.id }
   }
 
   const copyRoom = async () => {
