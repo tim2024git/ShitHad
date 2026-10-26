@@ -55,6 +55,7 @@ function App() {
   const dealingTimerRef = useRef(null)
   const roomStateRef = useRef(null)
   const pendingPlayRef = useRef(null)
+  const pollInFlightRef = useRef(false)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? -1
@@ -174,11 +175,15 @@ function App() {
       })
     }
     if (payload.gameState?.discardPile && !stateIsStale) {
-      setGame((currentGame) => currentGame ? {
-        ...currentGame,
-        discardPile: payload.gameState.discardPile,
-        currentPlayer: Math.max(0, currentGame.players.findIndex((entry) => entry.id === payload.gameState.currentPlayerId)),
-      } : currentGame)
+      setGame((currentGame) => {
+        if (!currentGame) return currentGame
+        const nextPlayerIndex = currentGame.players.findIndex((entry) => entry.id === payload.gameState.currentPlayerId)
+        return {
+          ...currentGame,
+          discardPile: payload.gameState.discardPile,
+          currentPlayer: nextPlayerIndex >= 0 ? nextPlayerIndex : currentGame.currentPlayer,
+        }
+      })
     }
     roomStateRef.current = payload
     if (payload.phase === 'dealing' && payload.startedAt && phaseRef.current !== 'dealing') beginDealing(payload.startedAt, payload.players ?? [])
@@ -201,8 +206,14 @@ function App() {
         setPhase(payload.phase === 'game' ? 'game' : payload.phase === 'dealing' ? 'dealing' : 'lobby')
         window.clearInterval(socketRef.current)
         socketRef.current = window.setInterval(async () => {
-          const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}&playerId=${encodeURIComponent(payload.playerId ?? myPlayerId ?? '')}`)
-          if (state.ok) applyRoomState(await state.json())
+          if (pollInFlightRef.current) return
+          pollInFlightRef.current = true
+          try {
+            const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}&playerId=${encodeURIComponent(payload.playerId ?? myPlayerId ?? '')}`)
+            if (state.ok) applyRoomState(await state.json())
+          } finally {
+            pollInFlightRef.current = false
+          }
         }, 2000)
       } catch (error) {
         setConnection('offline')
