@@ -51,6 +51,7 @@ function App() {
   const [roomMode, setRoomMode] = useState('join')
   const [isConnecting, setIsConnecting] = useState(false)
   const [myPlayerId, setMyPlayerId] = useState(null)
+  const myPlayerIdRef = useRef(null)
   const [dealingStep, setDealingStep] = useState(0)
   const dealingTimerRef = useRef(null)
   const roomStateRef = useRef(null)
@@ -86,6 +87,7 @@ function App() {
     setAnimatingCard(null)
     setRoomPlayers([])
     setMyPlayerId(null)
+    myPlayerIdRef.current = null
     setConnection('offline')
     setConnectionMessage('')
   }
@@ -134,6 +136,7 @@ function App() {
       setPhase('game')
     }
     if (payload.playerId) {
+      myPlayerIdRef.current = payload.playerId
       setMyPlayerId(payload.playerId)
       localStorage.setItem('shithad-session', JSON.stringify({ roomCode: payload.roomCode, playerName, playerId: payload.playerId }))
     }
@@ -158,7 +161,9 @@ function App() {
               ...entry,
               faceUp: serverPlayer.faceUp ?? entry.faceUp,
               faceDown: serverPlayer.faceDown ?? entry.faceDown,
-              hand: serverPlayer.id === myPlayerId ? (serverPlayer.hand ?? []) : entry.hand.slice(0, serverPlayer.handCount ?? entry.hand.length),
+              hand: serverPlayer.id === myPlayerIdRef.current
+                ? (serverPlayer.hand ?? [])
+                : entry.hand.slice(0, serverPlayer.handCount ?? entry.hand.length),
             } : entry
           }),
           discardPile: payload.gameState.discardPile ?? baseGame.discardPile,
@@ -190,7 +195,7 @@ function App() {
           if (pollInFlightRef.current) return
           pollInFlightRef.current = true
           try {
-            const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}&playerId=${encodeURIComponent(payload.playerId ?? myPlayerId ?? '')}`)
+            const state = await fetch(`/api/rooms?roomCode=${encodeURIComponent(payload.roomCode)}&playerId=${encodeURIComponent(payload.playerId ?? myPlayerIdRef.current ?? '')}`)
             if (state.ok) applyRoomState(await state.json())
           } finally {
             pollInFlightRef.current = false

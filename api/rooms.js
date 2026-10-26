@@ -148,7 +148,15 @@ export async function POST(request) {
       ON CONFLICT (code) DO UPDATE
       SET players = EXCLUDED.players, host_id = COALESCE(shithad_rooms.host_id, EXCLUDED.host_id), expires_at = EXCLUDED.expires_at
     `
-    return json({ roomCode: code, playerId: player.id, players, hostId, phase: room.phase, startedAt: room.started_at, gameState: room.game_state })
+    return json({
+      roomCode: code,
+      playerId: player.id,
+      players,
+      hostId,
+      phase: room.phase,
+      startedAt: room.started_at,
+      gameState: visibleGameState(room.game_state, player.id),
+    })
   } catch {
     return json({ message: 'Die Neon-Datenbank konnte nicht erreicht werden.' }, 500)
   }
