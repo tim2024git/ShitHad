@@ -13,9 +13,9 @@ const randomPlayerName = () => {
   return `${names[Math.floor(Math.random() * names.length)]}${Math.floor(100 + Math.random() * 900)}`
 }
 
-function Card({ rank, suit, faceDown = false, small = false, onClick, className = '' }) {
+function Card({ rank, suit, faceDown = false, small = false, onClick, className = '', extraProps = {} }) {
   return (
-    <button className={`card ${faceDown ? 'card-back' : ''} ${small ? 'card-small' : ''} ${className}`} onClick={onClick}>
+    <button className={`card ${faceDown ? 'card-back' : ''} ${small ? 'card-small' : ''} ${className}`} onClick={onClick} {...extraProps}>
       {faceDown ? (
         <span className="card-back-mark">S</span>
       ) : (
@@ -58,6 +58,10 @@ function App() {
   const pollInFlightRef = useRef(false)
   const gameRevisionRef = useRef(-1)
   const playInFlightRef = useRef(false)
+  const swapBusyRef = useRef(false)
+  const dragRef = useRef(null)
+  const [swapSelection, setSwapSelection] = useState(null)
+  const [dragState, setDragState] = useState(null)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? -1
@@ -67,6 +71,10 @@ function App() {
     ? playerName
     : roomPlayers[game?.currentPlayer]?.name ?? game?.players[game?.currentPlayer]?.name ?? 'Nächster Spieler'
   const isPlayable = game?.currentPlayer === playerIndex && selectedCard !== null && canPlay(player?.hand[selectedCard], game.discardPile)
+  const isSwapping = Boolean(game?.swapping) && phase === 'game'
+  const iAmReady = Boolean(game?.ready?.[myPlayerId])
+  const canSwap = isSwapping && Boolean(player) && !iAmReady
+  const readyCount = Object.keys(game?.ready ?? {}).length
   const isHost = roomPlayers.find((roomPlayer) => roomPlayer.id === myPlayerId)?.host === true
   const dealingPlayerCount = Math.max(3, Math.min(6, roomPlayers.length || 3))
   const dealingTarget = dealingStep % dealingPlayerCount
@@ -168,6 +176,8 @@ function App() {
             } : entry
           }),
           discardPile: payload.gameState.discardPile ?? baseGame.discardPile,
+          swapping: Boolean(payload.gameState.swapping),
+          ready: payload.gameState.ready ?? {},
           currentPlayer: Math.max(0, baseGame.players.findIndex((entry) => entry.id === payload.gameState.currentPlayerId)),
         }
       })
@@ -292,6 +302,7 @@ function App() {
 
   const playCard = (cardIndex = selectedCard) => {
     const selected = player?.hand[cardIndex]
+    if (game?.swapping) return
     if (playInFlightRef.current || !game || !player || cardIndex === null || !selected || game.currentPlayer !== playerIndex || !canPlay(selected, game.discardPile)) return
     playInFlightRef.current = true
     const card = selected
@@ -325,6 +336,70 @@ function App() {
       })
     setSelectedCard(null)
   }
+
+  const sendSwapAction = (body) => {
+    if (swapBusyRef.current) return
+    swapBusyRef.current = true
+    setSwapSelection(null)
+    fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomCode: joinCode, playerId: myPlayerId, ...body }),
+    }).then(async (response) => {
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.message ?? 'Aktion fehlgeschlagen.')
+      setConnectionMessage('')
+      applyRoomState(payload)
+    }).catch((error) => setConnectionMessage(error.message))
+      .finally(() => {
+        swapBusyRef.current = false
+      })
+  }
+
+  const swapCards = (zone, card, otherId) => {
+    const handCardId = zone === 'hand' ? card.id : otherId
+    const faceUpCardId = zone === 'faceUp' ? card.id : otherId
+    sendSwapAction({ action: 'swap', handCardId, faceUpCardId })
+  }
+
+  const markReady = () => {
+    if (canSwap) sendSwapAction({ action: 'ready' })
+  }
+
+  const swapCardProps = (zone, card) => !canSwap ? {} : {
+    'data-swap-zone': zone,
+    'data-swap-id': card.id,
+    onPointerDown: (event) => {
+      if (event.button > 0) return
+      dragRef.current = { zone, card, startX: event.clientX, startY: event.clientY, moved: false }
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    },
+    onPointerMove: (event) => {
+      const drag = dragRef.current
+      if (!drag || (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 8)) return
+      drag.moved = true
+      setDragState({ zone: drag.zone, card: drag.card, x: event.clientX, y: event.clientY })
+    },
+    onPointerUp: (event) => {
+      const drag = dragRef.current
+      dragRef.current = null
+      setDragState(null)
+      if (!drag) return
+      if (drag.moved) {
+        const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-swap-zone]')
+        if (target && target.dataset.swapZone !== drag.zone) swapCards(drag.zone, drag.card, target.dataset.swapId)
+        return
+      }
+      if (swapSelection && swapSelection.zone !== zone) swapCards(zone, card, swapSelection.id)
+      else setSwapSelection(swapSelection?.id === card.id ? null : { zone, id: card.id })
+    },
+    onPointerCancel: () => {
+      dragRef.current = null
+      setDragState(null)
+    },
+  }
+
+  const swapClass = (card) => !canSwap ? '' : `swap-card ${swapSelection?.id === card.id || dragState?.card.id === card.id ? 'swap-selected' : ''}`
 
   const copyRoom = async () => {
     try {
@@ -396,7 +471,7 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
-            {game.players.filter((tablePlayer) => tablePlayer.id !== myPlayerId).map((tablePlayer, tableIndex) => { const index = game.players.findIndex((entry) => entry.id === tablePlayer.id); const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-opponent-seat table-opponent-${tableIndex}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}</div></div> })}
+            {game.players.filter((tablePlayer) => tablePlayer.id !== myPlayerId).map((tablePlayer, tableIndex) => { const index = game.players.findIndex((entry) => entry.id === tablePlayer.id); const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-opponent-seat table-opponent-${tableIndex}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.swapping && phase !== 'dealing' ? (game.ready?.[tablePlayer.id] && <span className="turn-chip">bereit</span>) : game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{visibleCards(tablePlayer.faceDown, Math.min(3, dealt)).map((card) => <Card key={`down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}{visibleCards(tablePlayer.faceUp, Math.max(0, Math.min(3, dealt - 3))).map((card) => <Card key={card.id} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}</div></div> })}
 
             <div className="table-center">
               <div className="pile-area">
@@ -411,17 +486,24 @@ function App() {
             {animatingCard && <div className="played-card-animation"><Card rank={animatingCard.rank} suit={animatingCard.suit} /></div>}
 
             <div className="bottom-hand-area">
-              {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={phase === 'dealing' ? undefined : () => playCard(handIndex)} className={phase === 'dealing' ? 'dealing-card' : ''} />)}
+              {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={phase === 'dealing' || isSwapping ? undefined : () => playCard(handIndex)} className={`${phase === 'dealing' ? 'dealing-card' : ''} ${swapClass(card)}`} extraProps={swapCardProps('hand', card)} />)}
             </div>
             <div className="bottom-public-area">
               {player && visibleCards(player.faceDown, phase === 'dealing' ? Math.min(3, dealtCardsForPlayer(playerIndex)) : 3).map((card) => <Card key={`own-down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}
-              {player && visibleCards(player.faceUp, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 3)) : 3).map((card) => <Card key={`own-up-${card.id}`} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}
+              {player && visibleCards(player.faceUp, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 3)) : 3).map((card) => <Card key={`own-up-${card.id}`} {...card} small className={`${phase === 'dealing' ? 'dealing-card' : ''} ${swapClass(card)}`} extraProps={swapCardProps('faceUp', card)} />)}
             </div>
           </div>
+          {isSwapping && (
+            <div className="swap-bar">
+              <span>{iAmReady ? `Warte auf die anderen Spieler … (${readyCount}/${game.players.length} bereit)` : 'Tausche Handkarten mit deinen offenen Karten per Drag & Drop (oder antippen). Dann auf Fertig drücken.'}</span>
+              <button className="primary-action" disabled={iAmReady} onClick={markReady}>{iAmReady ? 'Bereit ✓' : 'Fertig'}</button>
+            </div>
+          )}
 
         </div>
 
       </section>
+      {dragState && <div className="drag-ghost" style={{ left: dragState.x, top: dragState.y }}><Card rank={dragState.card.rank} suit={dragState.card.suit} small={dragState.zone === 'faceUp'} /></div>}
       <footer><span>SHITHAD</span><span>Lokaler Prototyp · Bereit für Multiplayer</span><span>v0.1.0</span></footer>
     </main>
   )

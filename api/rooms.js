@@ -54,6 +54,26 @@ async function removeInactiveRooms(sql) {
   }
 }
 
+async function mutateGame(sql, code, initialRoom, mutate) {
+  let room = initialRoom
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const result = mutate(room)
+    if (result.error) return result
+    const revision = Number(room.game_state.revision ?? 0)
+    const saved = await sql`
+      UPDATE shithad_rooms
+      SET game_state = ${JSON.stringify(result.gameState)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes'
+      WHERE code = ${code} AND COALESCE((game_state->>'revision')::integer, 0) = ${revision}
+      RETURNING code
+    `
+    if (saved.length) return { ...result, room }
+    const rows = await sql`SELECT players, host_id, phase, started_at, game_state FROM shithad_rooms WHERE code = ${code} AND expires_at > NOW()`
+    if (!rows[0]) return { error: 'Raum nicht gefunden.', status: 404 }
+    room = rows[0]
+  }
+  return { error: 'Der Spielstand wird gerade geändert. Bitte versuche es erneut.', status: 409 }
+}
+
 export async function POST(request) {
   try {
     const sql = await database()
@@ -95,11 +115,54 @@ export async function POST(request) {
         handCounts: Object.fromEntries(gamePlayers.map((player) => [player.id, player.hand?.length ?? 3])),
         lastAction: null,
         revision: 0,
+        swapping: true,
+        ready: {},
       }
       await sql`UPDATE shithad_rooms SET phase = 'dealing', started_at = ${startedAt}, players = ${JSON.stringify(players)}::jsonb, game_state = ${JSON.stringify(gameState)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes' WHERE code = ${code}`
       return json({ roomCode: code, phase: 'dealing', startedAt, gameState: visibleGameState(gameState, payload.playerId), players })
     }
+    if (payload.action === 'swap' || payload.action === 'ready') {
+      if (!room.game_state) return json({ message: 'Das Spiel hat noch nicht begonnen.' }, 409)
+      const result = await mutateGame(sql, code, room, (current) => {
+        const state = current.game_state
+        if (!state?.swapping) return { error: 'Die Tauschphase ist bereits beendet.', status: 409 }
+        if (state.ready?.[payload.playerId]) return { error: 'Du bist bereits fertig.', status: 409 }
+        const players = (state.players ?? []).map((entry) => ({ ...entry, hand: [...(entry.hand ?? [])], faceUp: [...(entry.faceUp ?? [])] }))
+        const me = players.find((entry) => entry.id === payload.playerId)
+        if (!me) return { error: 'Spieler ist in diesem Spiel nicht vorhanden.', status: 403 }
+        if (payload.action === 'swap') {
+          const handIndex = me.hand.findIndex((card) => card.id === payload.handCardId)
+          const faceUpIndex = me.faceUp.findIndex((card) => card.id === payload.faceUpCardId)
+          if (handIndex < 0 || faceUpIndex < 0) return { error: 'Diese Karten können nicht getauscht werden.', status: 409 }
+          ;[me.hand[handIndex], me.faceUp[faceUpIndex]] = [me.faceUp[faceUpIndex], me.hand[handIndex]]
+          return { gameState: { ...state, players, revision: Number(state.revision ?? 0) + 1 } }
+        }
+        const ready = { ...(state.ready ?? {}), [payload.playerId]: true }
+        const seated = players.filter((entry) => current.players.some((roomPlayer) => roomPlayer.id === entry.id))
+        const everyoneReady = seated.every((entry) => ready[entry.id])
+        return {
+          gameState: {
+            ...state,
+            players,
+            ready: everyoneReady ? {} : ready,
+            swapping: !everyoneReady,
+            revision: Number(state.revision ?? 0) + 1,
+          },
+        }
+      })
+      if (result.error) return json({ message: result.error }, result.status)
+      return json({
+        roomCode: code,
+        playerId: payload.playerId,
+        players: result.room.players,
+        hostId: result.room.host_id,
+        phase: result.room.phase,
+        startedAt: result.room.started_at,
+        gameState: visibleGameState(result.gameState, payload.playerId),
+      })
+    }
     if (payload.action === 'play') {
+      if (room.game_state?.swapping) return json({ message: 'Es geht los, sobald alle Spieler auf Fertig gedrückt haben.' }, 409)
       if (!['dealing', 'game'].includes(room.phase)) return json({ message: 'Das Spiel hat noch nicht begonnen.' }, 409)
       if (room.game_state?.currentPlayerId !== payload.playerId) return json({ message: 'Du bist nicht an der Reihe.' }, 403)
       const gamePlayers = room.game_state.players ?? []
