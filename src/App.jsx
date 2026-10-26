@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Copy, Crown, HelpCircle, LogOut, Plus, Settings, Users, Wifi } from 'lucide-react'
-import { canPlay, dealGame, effectiveTop, specialRule } from './game'
+import { canPlay, dealGame, specialRule } from './game'
 
 const opponents = [
   { name: 'Lena', initials: 'L', cards: 5, active: false, color: 'coral' },
@@ -59,7 +59,7 @@ function App() {
   phaseRef.current = phase
   const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? -1
   const player = game?.players[playerIndex]
-  const topCard = game ? effectiveTop(game.discardPile) : null
+  const topCard = game?.discardPile.at(-1) ?? null
   const currentTurnName = game?.currentPlayer === playerIndex
     ? playerName
     : roomPlayers[game?.currentPlayer]?.name ?? game?.players[game?.currentPlayer]?.name ?? 'Nächster Spieler'
