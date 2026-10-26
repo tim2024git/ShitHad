@@ -402,6 +402,10 @@ function App() {
             <div className="bottom-hand-area">
               {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={phase === 'dealing' ? undefined : () => playCard(handIndex)} className={phase === 'dealing' ? 'dealing-card' : ''} />)}
             </div>
+            <div className="bottom-public-area">
+              {player && visibleCards(player.faceDown, phase === 'dealing' ? Math.min(3, dealtCardsForPlayer(playerIndex)) : 3).map((card) => <Card key={`own-down-${card.id}`} faceDown small className={phase === 'dealing' ? 'dealing-card' : ''} />)}
+              {player && visibleCards(player.faceUp, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 3)) : 3).map((card) => <Card key={`own-up-${card.id}`} {...card} small className={phase === 'dealing' ? 'dealing-card' : ''} />)}
+            </div>
           </div>
 
         </div>
