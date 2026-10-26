@@ -160,3 +160,44 @@ footer { max-width: 1500px; padding: 38px 3.3vw 20px; margin: 0 auto; display:fl
   .bottom-public-area { padding-left:0; gap:6px; }
   .bottom-hand-area { bottom:78px; }
 }
+.table-opponents { display:contents; }
+@media (max-width: 700px) {
+  .game-layout { padding:14px 10px 0; gap:14px; }
+  .table { display:flex; flex-direction:column; align-items:center; gap:16px; min-height:0; padding:16px 8px 18px; overflow:visible; }
+  .table-opponents { display:flex; flex-wrap:wrap; justify-content:center; gap:14px 10px; width:100%; position:relative; z-index:1; }
+  .table .table-opponent-seat { position:static; transform:none; min-width:0; flex:0 1 calc(50% - 10px); max-width:190px; align-items:center; text-align:center; }
+  .table .table-player-info { flex-wrap:wrap; justify-content:center; white-space:normal; gap:6px; min-height:0; }
+  .table .table-player-info strong { font-size:14px; }
+  .table .table-player-info span:not(.avatar):not(.turn-chip) { font-size:12px; }
+  .table .turn-chip { font-size:11px; padding:3px 9px; }
+  .table .table-player-cards { max-width:none; padding-left:0; gap:6px; margin-top:2px; }
+  .table .card-stack { width:46px; height:82px; }
+  .table .table-player-cards .card-stack .card-small { width:46px; height:64px; padding:3px; }
+  .table .table-player-cards .card-small .card-corner { top:3px; left:3px; font-size:11px; }
+  .table .table-player-cards .card-small .card-corner b { font-size:9px; }
+  .table .table-player-cards .card-small .card-suit { font-size:20px; }
+  .table .table-player-cards .card-small .card-corner-bottom { bottom:3px; right:3px; }
+  .table .table-player-cards .card-back-mark, .table .bottom-public-area .card-back-mark { width:20px; height:28px; font-size:13px; }
+  .table .table-center { position:static; transform:none; gap:28px; justify-content:center; margin:4px 0; z-index:1; }
+  .table .pile-label { position:static; transform:none; writing-mode:horizontal-tb; width:auto; height:auto; gap:8px; justify-content:center; font-size:12px; }
+  .table .pile-area { gap:8px; }
+  .table .table-center .card, .table .empty-discard-pile { width:72px; height:102px; }
+  .table .bottom-hand-area { position:static; transform:none; gap:10px; margin-top:4px; }
+  .table .bottom-hand-area .card { width:68px; height:97px; padding:5px; }
+  .table .bottom-hand-area .card-corner { top:5px; left:6px; font-size:14px; }
+  .table .bottom-hand-area .card-corner b { font-size:12px; }
+  .table .bottom-hand-area .card-suit { font-size:28px; }
+  .table .bottom-hand-area .card-corner-bottom { bottom:5px; right:6px; }
+  .table .bottom-public-area { position:static; transform:none; padding-left:0; gap:10px; }
+  .table .bottom-public-area .card-stack { width:56px; height:98px; }
+  .table .bottom-public-area .card-stack .card-small { width:56px; height:78px; padding:4px; }
+  .table .bottom-public-area .card-small .card-corner { top:4px; left:4px; font-size:12px; }
+  .table .bottom-public-area .card-small .card-corner b { font-size:10px; }
+  .table .bottom-public-area .card-small .card-suit { font-size:24px; }
+  .table .bottom-public-area .card-small .card-corner-bottom { bottom:4px; right:4px; }
+  .table .played-card-animation { bottom:150px; }
+  .swap-bar { flex-direction:column; align-items:stretch; text-align:center; font-size:13px; margin-top:12px; }
+  .swap-bar .primary-action { width:100%; padding:12px; font-size:14px; }
+  .topbar { height:auto; min-height:60px; }
+  footer { padding:18px 14px 20px; }
+}

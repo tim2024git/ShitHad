@@ -483,7 +483,9 @@ function App() {
         <div className="table-wrap">
           <div className="table">
             <div className="table-texture" />
+            <div className="table-opponents">
             {game.players.filter((tablePlayer) => tablePlayer.id !== myPlayerId).map((tablePlayer, tableIndex) => { const index = game.players.findIndex((entry) => entry.id === tablePlayer.id); const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-opponent-seat table-opponent-${tableIndex}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.swapping && phase !== 'dealing' ? (game.ready?.[tablePlayer.id] && <span className="turn-chip">bereit</span>) : game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{cardStacks(tablePlayer, phase === 'dealing' ? dealt : 9, phase === 'dealing')}</div></div> })}
+            </div>
 
             <div className="table-center">
               <div className="pile-area">
