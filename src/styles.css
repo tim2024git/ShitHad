@@ -201,3 +201,9 @@ footer { max-width: 1500px; padding: 38px 3.3vw 20px; margin: 0 auto; display:fl
   .topbar { height:auto; min-height:60px; }
   footer { padding:18px 14px 20px; }
 }
+.table-seat.is-turn { background:#2f6b45cc; border:2px solid #6fd08c; border-radius:14px; padding:8px 12px; box-shadow:0 0 18px #4fbf7a66; }
+.table-seat.is-turn .avatar { border-color:#6fd08c; background:#6fd08c; color:#0f2a18; }
+.table-seat.is-turn .table-player-info strong { color:#b8f2c9; }
+.room-status.is-turn { background:#2f6b45cc; border:2px solid #6fd08c; border-radius:99px; padding:5px 12px; box-shadow:0 0 14px #4fbf7a66; }
+.room-status.is-turn .live-dot { background:#6fd08c; }
+.room-status.is-turn > span:nth-child(2) { color:#d9f1df; }

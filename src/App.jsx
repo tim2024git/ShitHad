@@ -401,6 +401,8 @@ function App() {
 
   const swapClass = (card) => !canSwap ? '' : `swap-card ${swapSelection?.id === card.id || dragState?.card.id === card.id ? 'swap-selected' : ''}`
 
+  const isTurn = (index) => phase === 'game' && !game?.swapping && game?.currentPlayer === index
+
   const cardStacks = (owner, dealt, dealing, own = false) => {
     const down = visibleCards(owner.faceDown, Math.min(3, dealt))
     const up = visibleCards(owner.faceUp, Math.max(0, Math.min(3, dealt - 3)))
@@ -470,7 +472,7 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">S</span><span>shithad</span></div>
-        <div className="room-status"><span className="live-dot" /> <span>Du bist <strong>{playerName}</strong></span><span className="header-room">Raum <strong>{joinCode}</strong></span><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
+        <div className={`room-status ${isTurn(playerIndex) ? 'is-turn' : ''}`}><span className="live-dot" /> <span>Du bist <strong>{playerName}</strong></span><span className="header-room">Raum <strong>{joinCode}</strong></span><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
         <div className="top-actions">
           <button className="icon-button" onClick={() => setShowHelp(!showHelp)} aria-label="Spielregeln"><HelpCircle size={19} /></button>
           <button className="icon-button" aria-label="Einstellungen"><Settings size={19} /></button>
@@ -484,7 +486,7 @@ function App() {
           <div className="table">
             <div className="table-texture" />
             <div className="table-opponents">
-            {game.players.filter((tablePlayer) => tablePlayer.id !== myPlayerId).map((tablePlayer, tableIndex) => { const index = game.players.findIndex((entry) => entry.id === tablePlayer.id); const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-opponent-seat table-opponent-${tableIndex}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.swapping && phase !== 'dealing' ? (game.ready?.[tablePlayer.id] && <span className="turn-chip">bereit</span>) : game.currentPlayer === index && phase !== 'dealing' && <span className="turn-chip">dran</span>}</div><div className="table-player-cards">{cardStacks(tablePlayer, phase === 'dealing' ? dealt : 9, phase === 'dealing')}</div></div> })}
+            {game.players.filter((tablePlayer) => tablePlayer.id !== myPlayerId).map((tablePlayer, tableIndex) => { const index = game.players.findIndex((entry) => entry.id === tablePlayer.id); const dealt = phase === 'dealing' ? dealtCardsForPlayer(index) : 9; return <div className={`player table-seat table-opponent-seat table-opponent-${tableIndex} ${isTurn(index) ? 'is-turn' : ''}`} key={tablePlayer.id}><div className="table-player-info"><Avatar player={{ initials: tablePlayer.name.slice(0, 1).toUpperCase(), color: seatColors[index % seatColors.length] }} /><div><strong>{tablePlayer.name}</strong><span>{phase === 'dealing' ? `${dealt}/9 Karten` : `${tablePlayer.hand.length} Handkarten`}</span></div>{game.swapping && phase !== 'dealing' && game.ready?.[tablePlayer.id] && <span className="turn-chip">bereit</span>}</div><div className="table-player-cards">{cardStacks(tablePlayer, phase === 'dealing' ? dealt : 9, phase === 'dealing')}</div></div> })}
             </div>
 
             <div className="table-center">
