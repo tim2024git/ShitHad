@@ -95,6 +95,7 @@ export async function POST(request) {
         currentPlayerId: players[0]?.id ?? null,
         handCounts: Object.fromEntries(gamePlayers.map((player) => [player.id, player.hand?.length ?? 3])),
         lastAction: null,
+        revision: 0,
       }
       await sql`UPDATE shithad_rooms SET phase = 'dealing', started_at = ${startedAt}, players = ${JSON.stringify(players)}::jsonb, game_state = ${JSON.stringify(gameState)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes' WHERE code = ${code}`
       return json({ roomCode: code, phase: 'dealing', startedAt, gameState: visibleGameState(gameState, payload.playerId), players })
@@ -123,9 +124,18 @@ export async function POST(request) {
         players: updatedGamePlayers,
         drawPile,
         lastAction: { type: 'play', playerId: payload.playerId, card: payload.card, at: new Date().toISOString() },
+        revision: Number(room.game_state.revision ?? 0) + 1,
       }
       const players = (payload.players ?? room.players).map((player) => ({ id: player.id, name: player.name, host: player.host, handCount: gameState.handCounts[player.id] ?? player.handCount ?? 3, lastSeen: new Date().toISOString() }))
-      await sql`UPDATE shithad_rooms SET phase = 'game', game_state = ${JSON.stringify(gameState)}::jsonb, players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes' WHERE code = ${code}`
+      const saved = await sql`
+        UPDATE shithad_rooms
+        SET phase = 'game', game_state = ${JSON.stringify(gameState)}::jsonb, players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes'
+        WHERE code = ${code}
+          AND game_state->>'currentPlayerId' = ${payload.playerId}
+          AND COALESCE((game_state->>'revision')::integer, 0) = ${Number(room.game_state.revision ?? 0)}
+        RETURNING code
+      `
+      if (!saved.length) return json({ message: 'Der Spielstand wurde zwischenzeitlich aktualisiert. Bitte warte auf deinen nächsten Zug.' }, 409)
       return json({ roomCode: code, playerId: payload.playerId, gameState: visibleGameState(gameState, payload.playerId), players, phase: 'game' })
     }
     if (payload.mode === 'create' && room.players.length) return json({ message: 'Dieser Raumcode wird bereits verwendet.' }, 409)

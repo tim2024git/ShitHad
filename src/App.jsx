@@ -56,6 +56,8 @@ function App() {
   const dealingTimerRef = useRef(null)
   const roomStateRef = useRef(null)
   const pollInFlightRef = useRef(false)
+  const gameRevisionRef = useRef(-1)
+  const playInFlightRef = useRef(false)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const playerIndex = game?.players.findIndex((entry) => entry.id === myPlayerId) ?? -1
@@ -84,6 +86,7 @@ function App() {
     localStorage.removeItem('shithad-session')
     setPhase('home')
     setGame(null)
+    gameRevisionRef.current = -1
     setAnimatingCard(null)
     setRoomPlayers([])
     setMyPlayerId(null)
@@ -140,11 +143,9 @@ function App() {
       setMyPlayerId(payload.playerId)
       localStorage.setItem('shithad-session', JSON.stringify({ roomCode: payload.roomCode, playerName, playerId: payload.playerId }))
     }
-    if (payload.phase === 'game' && !game) {
-      setGame(dealGame(Math.max(3, Math.min(6, (payload.players ?? []).length || 3)), payload.startedAt ?? 'room', payload.players ?? []))
-      setPhase('game')
-    }
-    if (payload.gameState?.players) {
+    const gameRevision = Number(payload.gameState?.revision ?? 0)
+    if (payload.gameState?.players && gameRevision >= gameRevisionRef.current) {
+      gameRevisionRef.current = gameRevision
       setGame((currentGame) => {
         const baseGame = currentGame ?? dealGame(
           Math.max(3, Math.min(6, (payload.players ?? []).length || 3)),
@@ -291,7 +292,8 @@ function App() {
 
   const playCard = (cardIndex = selectedCard) => {
     const selected = player?.hand[cardIndex]
-    if (!game || !player || cardIndex === null || !selected || game.currentPlayer !== playerIndex || !canPlay(selected, game.discardPile)) return
+    if (playInFlightRef.current || !game || !player || cardIndex === null || !selected || game.currentPlayer !== playerIndex || !canPlay(selected, game.discardPile)) return
+    playInFlightRef.current = true
     const card = selected
     setAnimatingCard({ ...card, animationId: `${card.id}-${Date.now()}` })
     window.setTimeout(() => setAnimatingCard(null), 520)
@@ -318,6 +320,9 @@ function App() {
         if (!response.ok) throw new Error(payload.message ?? 'Karte konnte nicht gelegt werden.')
         applyRoomState(payload)
       }).catch((error) => setConnectionMessage(error.message))
+      .finally(() => {
+        playInFlightRef.current = false
+      })
     setSelectedCard(null)
   }
 
@@ -386,6 +391,7 @@ function App() {
         </div>
       </header>
 
+      {connectionMessage && <p className="connection-error" role="alert">{connectionMessage}</p>}
       <section className="game-layout">
         <div className="table-wrap">
           <div className="table">
