@@ -472,7 +472,7 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">S</span><span>shithad</span></div>
-        <div className={`room-status ${isTurn(playerIndex) ? 'is-turn' : ''}`}><span className="live-dot" /> <span>Du bist <strong>{playerName}</strong></span><span className="header-room">Raum <strong>{joinCode}</strong></span><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
+        <div className="room-status"><span className="live-dot" /> <span>Du bist <strong>{playerName}</strong></span><span className="header-room">Raum <strong>{joinCode}</strong></span><button className="copy-button" onClick={copyRoom} aria-label="Raumcode kopieren"><Copy size={14} />{copied ? 'Kopiert' : 'Kopieren'}</button></div>
         <div className="top-actions">
           <button className="icon-button" onClick={() => setShowHelp(!showHelp)} aria-label="Spielregeln"><HelpCircle size={19} /></button>
           <button className="icon-button" aria-label="Einstellungen"><Settings size={19} /></button>
@@ -501,10 +501,10 @@ function App() {
             </div>
             {animatingCard && <div className="played-card-animation"><Card rank={animatingCard.rank} suit={animatingCard.suit} /></div>}
 
-            <div className="bottom-hand-area">
+            <div className={`bottom-hand-area ${isTurn(playerIndex) ? 'is-turn' : ''}`}>
               {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => <Card key={`hand-${card.id}`} {...card} onClick={phase === 'dealing' || isSwapping ? undefined : () => playCard(handIndex)} className={`${phase === 'dealing' ? 'dealing-card' : ''} ${swapClass(card)}`} extraProps={swapCardProps('hand', card)} />)}
             </div>
-            <div className="bottom-public-area">
+            <div className={`bottom-public-area ${isTurn(playerIndex) ? 'is-turn' : ''}`}>
               {player && cardStacks(player, phase === 'dealing' ? dealtCardsForPlayer(playerIndex) : 9, phase === 'dealing', true)}
             </div>
           </div>
