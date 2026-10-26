@@ -61,7 +61,6 @@ export async function POST(request) {
     const payload = await request.json()
     const name = nameOf(payload.name)
     let code = codeOf(payload.roomCode)
-    if (!name) return json({ message: 'Bitte einen Namen eingeben.' }, 400)
     if (payload.mode === 'create') {
       code = `SH${Math.random().toString(36).slice(2, 6).toUpperCase()}`
     }
@@ -138,6 +137,7 @@ export async function POST(request) {
       if (!saved.length) return json({ message: 'Der Spielstand wurde zwischenzeitlich aktualisiert. Bitte warte auf deinen nächsten Zug.' }, 409)
       return json({ roomCode: code, playerId: payload.playerId, gameState: visibleGameState(gameState, payload.playerId), players, phase: 'game' })
     }
+    if (!name) return json({ message: 'Bitte einen Namen eingeben.' }, 400)
     if (payload.mode === 'create' && room.players.length) return json({ message: 'Dieser Raumcode wird bereits verwendet.' }, 409)
     const duplicateName = room.players.some((player) => player.name.toLocaleLowerCase() === name.toLocaleLowerCase() && player.id !== payload.playerId)
     if (duplicateName) return json({ message: 'Dieser Name wird in diesem Raum bereits verwendet.' }, 409)
