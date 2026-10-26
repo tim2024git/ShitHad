@@ -6,6 +6,18 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
   headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
 })
 
+const visibleGameState = (gameState, playerId) => {
+  if (!gameState) return gameState
+  return {
+    ...gameState,
+    players: gameState.players?.map((player) => ({
+      ...player,
+      hand: player.id === playerId ? player.hand : [],
+      handCount: player.hand?.length ?? player.handCount ?? 0,
+    })),
+  }
+}
+
 async function database() {
   if (!process.env.DATABASE_URL) return null
   const { neon } = await import('@neondatabase/serverless')
@@ -82,11 +94,13 @@ export async function POST(request) {
         discardPile: payload.card?.value === 10 ? [] : [...(room.game_state.discardPile ?? []), payload.card],
         currentPlayerId: payload.nextPlayerId,
         handCounts: payload.handCounts ?? room.game_state.handCounts ?? {},
+        players: payload.gamePlayers ?? room.game_state.players ?? [],
+        drawPile: payload.drawPile ?? room.game_state.drawPile ?? [],
         lastAction: { type: 'play', playerId: payload.playerId, card: payload.card, at: new Date().toISOString() },
       }
       const players = (payload.players ?? room.players).map((player) => ({ id: player.id, name: player.name, host: player.host, handCount: gameState.handCounts[player.id] ?? player.handCount ?? 3, lastSeen: new Date().toISOString() }))
       await sql`UPDATE shithad_rooms SET phase = 'game', game_state = ${JSON.stringify(gameState)}::jsonb, players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes' WHERE code = ${code}`
-      return json({ roomCode: code, gameState, players, phase: 'game' })
+      return json({ roomCode: code, gameState: visibleGameState(gameState, payload.playerId), players, phase: 'game' })
     }
     if (payload.mode === 'create' && room.players.length) return json({ message: 'Dieser Raumcode wird bereits verwendet.' }, 409)
     const duplicateName = room.players.some((player) => player.name.toLocaleLowerCase() === name.toLocaleLowerCase() && player.id !== payload.playerId)
@@ -143,7 +157,8 @@ export async function GET(request) {
       await sql`UPDATE shithad_rooms SET players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes' WHERE code = ${code}`
       rows[0].players = players
     }
-    return rows[0] ? json({ roomCode: code, players: rows[0].players, hostId: rows[0].host_id, phase: rows[0].phase, startedAt: rows[0].started_at, gameState: rows[0].game_state }) : json({ message: 'Raum nicht gefunden.' }, 404)
+    const playerId = new URL(request.url).searchParams.get('playerId')
+    return rows[0] ? json({ roomCode: code, players: rows[0].players, hostId: rows[0].host_id, phase: rows[0].phase, startedAt: rows[0].started_at, gameState: visibleGameState(rows[0].game_state, playerId) }) : json({ message: 'Raum nicht gefunden.' }, 404)
   } catch {
     return json({ message: 'Die Neon-Datenbank konnte nicht erreicht werden.' }, 500)
   }

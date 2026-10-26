@@ -174,6 +174,25 @@ function App() {
         return { ...currentGame, drawPile, players }
       })
     }
+    if (payload.gameState?.players && !stateIsStale) {
+      setGame((currentGame) => {
+        if (!currentGame) return currentGame
+        const serverPlayers = new Map(payload.gameState.players.map((entry) => [entry.id, entry]))
+        return {
+          ...currentGame,
+          drawPile: payload.gameState.drawPile ?? currentGame.drawPile,
+          players: currentGame.players.map((entry) => {
+            const serverPlayer = serverPlayers.get(entry.id)
+            return serverPlayer ? {
+              ...entry,
+              faceUp: serverPlayer.faceUp ?? entry.faceUp,
+              faceDown: serverPlayer.faceDown ?? entry.faceDown,
+              hand: serverPlayer.id === myPlayerId ? (serverPlayer.hand ?? []) : entry.hand,
+            } : entry
+          }),
+        }
+      })
+    }
     if (payload.gameState?.discardPile && !stateIsStale) {
       setGame((currentGame) => {
         if (!currentGame) return currentGame
@@ -358,6 +377,8 @@ function App() {
           nextPlayerId: game.players[nextPlayerIndex]?.id,
           card,
           handCounts,
+          gamePlayers: updatedPlayers,
+          drawPile: nextDrawPile,
           players: updatedPlayers.map((entry) => ({ id: entry.id, name: entry.name, host: entry.host, handCount: entry.hand.length })),
         }),
       }).catch((error) => setConnectionMessage(error.message))
