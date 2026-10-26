@@ -315,10 +315,20 @@ function App() {
   const startGame = async () => {
     if (!isHost || !roomStateRef.current?.roomCode) return
     try {
+      const startedAt = new Date().toISOString()
+      const initialGame = dealGame(Math.max(3, Math.min(6, roomPlayers.length || 3)), startedAt, roomPlayers)
       const result = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start', roomCode: roomStateRef.current.roomCode, playerId: myPlayerId, name: playerName }),
+        body: JSON.stringify({
+          action: 'start',
+          roomCode: roomStateRef.current.roomCode,
+          playerId: myPlayerId,
+          name: playerName,
+          startedAt,
+          gamePlayers: initialGame.players,
+          drawPile: initialGame.drawPile,
+        }),
       })
       const payload = await result.json()
       if (!result.ok) throw new Error(payload.message ?? 'Das Spiel konnte nicht gestartet werden.')

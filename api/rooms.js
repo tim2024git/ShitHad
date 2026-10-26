@@ -81,11 +81,23 @@ export async function POST(request) {
     }
     if (payload.action === 'start') {
       if (room.host_id !== payload.playerId) return json({ message: 'Nur der Host kann das Spiel starten.' }, 403)
-      const startedAt = new Date().toISOString()
-      const players = room.players.map((player) => ({ ...player, handCount: 3 }))
-      const gameState = { discardPile: [], currentPlayerId: players[0]?.id ?? null, handCounts: Object.fromEntries(players.map((player) => [player.id, 3])), lastAction: null }
+      const startedAt = payload.startedAt ?? new Date().toISOString()
+      const players = room.players.map((player) => ({ ...player, handCount: payload.gamePlayers?.find((entry) => entry.id === player.id)?.hand?.length ?? 3 }))
+      const gamePlayers = (payload.gamePlayers ?? players).map((player) => ({
+        ...player,
+        name: players.find((entry) => entry.id === player.id)?.name ?? player.name,
+        host: players.find((entry) => entry.id === player.id)?.host ?? player.host,
+      }))
+      const gameState = {
+        players: gamePlayers,
+        drawPile: payload.drawPile ?? [],
+        discardPile: [],
+        currentPlayerId: players[0]?.id ?? null,
+        handCounts: Object.fromEntries(gamePlayers.map((player) => [player.id, player.hand?.length ?? 3])),
+        lastAction: null,
+      }
       await sql`UPDATE shithad_rooms SET phase = 'dealing', started_at = ${startedAt}, players = ${JSON.stringify(players)}::jsonb, game_state = ${JSON.stringify(gameState)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes' WHERE code = ${code}`
-      return json({ roomCode: code, phase: 'dealing', startedAt, gameState, players })
+      return json({ roomCode: code, phase: 'dealing', startedAt, gameState: visibleGameState(gameState, payload.playerId), players })
     }
     if (payload.action === 'play') {
       if (!['dealing', 'game'].includes(room.phase)) return json({ message: 'Das Spiel hat noch nicht begonnen.' }, 409)
