@@ -127,13 +127,6 @@ function App() {
   }
 
   const applyRoomState = (payload) => {
-    const previousRoomState = roomStateRef.current
-    const pendingPlay = pendingPlayRef.current
-    const serverAction = payload.gameState?.lastAction
-    if (pendingPlay && serverAction?.playerId === pendingPlay.playerId && serverAction.card?.id === pendingPlay.cardId) {
-      pendingPlayRef.current = null
-    }
-    const stateIsStale = pendingPlay && !(serverAction?.playerId === pendingPlay.playerId && serverAction.card?.id === pendingPlay.cardId)
     setJoinCode(payload.roomCode ?? joinCode)
     setRoomPlayers(payload.players ?? [])
     if (payload.phase === 'game' && phaseRef.current !== 'game') {
@@ -149,58 +142,28 @@ function App() {
       setGame(dealGame(Math.max(3, Math.min(6, (payload.players ?? []).length || 3)), payload.startedAt ?? 'room', payload.players ?? []))
       setPhase('game')
     }
-    if (payload.gameState?.handCounts && !stateIsStale) {
+    if (payload.gameState?.players) {
       setGame((currentGame) => {
-        if (!currentGame) return currentGame
-        const action = payload.gameState.lastAction
-        const previousAction = previousRoomState?.gameState?.lastAction
-        let drawPile = currentGame.drawPile
-        const players = currentGame.players.map((entry) => {
-          const targetCount = payload.gameState.handCounts[entry.id] ?? entry.hand.length
-          let hand = entry.hand
-          if (action && action.at !== previousAction?.at && action.playerId === entry.id) {
-            const playedIndex = hand.findIndex((card) => card.id === action.card?.id)
-            if (playedIndex >= 0) {
-              const playedCard = hand[playedIndex]
-              hand = hand.filter((_, index) => index !== playedIndex)
-              while (hand.length < targetCount && drawPile.length && playedCard.value !== 10) {
-                hand = [...hand, drawPile[drawPile.length - 1]]
-                drawPile = drawPile.slice(0, -1)
-              }
-            }
-          }
-          return { ...entry, hand: hand.slice(0, targetCount) }
-        })
-        return { ...currentGame, drawPile, players }
-      })
-    }
-    if (payload.gameState?.players && !stateIsStale) {
-      setGame((currentGame) => {
-        if (!currentGame) return currentGame
+        const baseGame = currentGame ?? dealGame(
+          Math.max(3, Math.min(6, (payload.players ?? []).length || 3)),
+          payload.startedAt ?? 'room',
+          payload.players ?? [],
+        )
         const serverPlayers = new Map(payload.gameState.players.map((entry) => [entry.id, entry]))
         return {
-          ...currentGame,
-          drawPile: payload.gameState.drawPile ?? currentGame.drawPile,
-          players: currentGame.players.map((entry) => {
+          ...baseGame,
+          drawPile: payload.gameState.drawPile ?? baseGame.drawPile,
+          players: baseGame.players.map((entry) => {
             const serverPlayer = serverPlayers.get(entry.id)
             return serverPlayer ? {
               ...entry,
               faceUp: serverPlayer.faceUp ?? entry.faceUp,
               faceDown: serverPlayer.faceDown ?? entry.faceDown,
-              hand: serverPlayer.id === myPlayerId ? (serverPlayer.hand ?? []) : entry.hand,
+              hand: serverPlayer.id === myPlayerId ? (serverPlayer.hand ?? []) : entry.hand.slice(0, serverPlayer.handCount ?? entry.hand.length),
             } : entry
           }),
-        }
-      })
-    }
-    if (payload.gameState?.discardPile && !stateIsStale) {
-      setGame((currentGame) => {
-        if (!currentGame) return currentGame
-        const nextPlayerIndex = currentGame.players.findIndex((entry) => entry.id === payload.gameState.currentPlayerId)
-        return {
-          ...currentGame,
-          discardPile: payload.gameState.discardPile,
-          currentPlayer: nextPlayerIndex >= 0 ? nextPlayerIndex : currentGame.currentPlayer,
+          discardPile: payload.gameState.discardPile ?? baseGame.discardPile,
+          currentPlayer: Math.max(0, baseGame.players.findIndex((entry) => entry.id === payload.gameState.currentPlayerId)),
         }
       })
     }
@@ -233,7 +196,7 @@ function App() {
           } finally {
             pollInFlightRef.current = false
           }
-        }, 2000)
+        }, 1000)
       } catch (error) {
         setConnection('offline')
         setConnectionMessage(error.message)
