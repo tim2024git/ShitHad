@@ -44,21 +44,29 @@ export function effectiveTop(discardPile) {
 }
 
 export function canPlay(card, discardPile) {
+  if (!card) return false
+  if ([2, 3, 10].includes(card.value)) return true
   const top = effectiveTop(discardPile)
-  if (!top || card.value === 2) return true
-  if (card.value === 3) return true
-  if (card.value === 7) return top.value <= 7 || top.value === 10
+  if (!top || top.value === 2) return true
+  if (top.value === 7) return card.value <= 7
   return card.value >= top.value
 }
 
 export function specialRule(value) {
   return {
-    2: 'Reset: Der nächste Spieler darf wieder bei 0 beginnen.',
+    2: 'Reset: Der Ablagestapel bleibt liegen, der nächste Spieler darf wieder bei 0 beginnen.',
     3: 'Durchsichtig: Es zählt die Karte darunter.',
-    7: 'Der nächste muss 7 oder niedriger legen – oder eine 10.',
-    10: 'Der Ablagestapel wird aus dem Spiel genommen.',
+    7: 'Der nächste Spieler muss eine 7 oder niedriger legen.',
+    10: 'Der Ablagestapel wird entfernt und du bist noch einmal dran.',
     11: 'Bube: Der nächste Spieler wird übersprungen.',
   }[value] ?? null
+}
+
+export function activeCardZone(player) {
+  if (player?.hand?.length) return 'hand'
+  if (player?.faceUp?.length) return 'faceUp'
+  if (player?.faceDown?.length) return 'faceDown'
+  return null
 }
 
 export function dealGame(playerCount = 4, seed = 'local', playerData = []) {

@@ -47,6 +47,12 @@ Vercel hostet jetzt auch die Raum-API unter `/api/rooms`. Für den gemeinsamen S
 
 Lokal verbindet sich die Anwendung weiterhin automatisch mit dem WebSocket-Server auf Port `3001`.
 
+## Spielregeln
+
+Lege grundsätzlich eine gleich hohe oder höhere Karte. Eine 2 setzt den gültigen Kartenwert auf 0 zurück, ohne den Ablagestapel zu entfernen; eine 3 ist durchsichtig und lässt den Wert der darunterliegenden Karte gelten. Auf eine 7 muss eine 7 oder niedrigere Karte gelegt werden. 2, 3 und 10 sind immer spielbar. Eine 10 entfernt den Ablagestapel und gibt dir einen weiteren Zug; bei einem Buben setzt der nächste Spieler aus.
+
+Spiele zuerst deine Handkarten. Ist der Nachziehstapel leer und sind deine Handkarten aufgebraucht, nimmst du deine offenen Karten auf die Hand; danach spielst du deine verdeckten Karten einzeln. Ist eine verdeckte Karte nicht spielbar, nimmst du sie zusammen mit dem Ablagestapel auf. Kannst du aus deiner Hand keine Karte legen, nimmst du den Ablagestapel auf und dein Zug endet. Solange der Nachziehstapel Karten enthält, ziehst du nach dem Ausspielen bis auf drei Handkarten auf. Wer zuerst alle Handkarten sowie offenen und verdeckten Karten los ist, gewinnt.
+
 ## Nächste Ausbaustufe
 
 Der Raumcode und die Spieleransicht sind bereits als eigene UI-Flächen angelegt. Für echtes Beitreten per Handy kann als nächster Schritt ein kleines Backend (z. B. WebSocket/Socket.IO) ergänzt werden; der Raumzustand sollte dann serverseitig verwaltet und an alle Clients verteilt werden.

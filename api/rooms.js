@@ -1,3 +1,5 @@
+import { activeCardZone, canPlay } from '../src/game.js'
+
 const codeOf = (value) => String(value ?? '').trim().toUpperCase().slice(0, 8)
 const nameOf = (value) => String(value ?? '').trim().slice(0, 20)
 const presenceWindowMs = 10 * 60 * 1000
@@ -13,6 +15,9 @@ const visibleGameState = (gameState, playerId) => {
     players: gameState.players?.map((player) => ({
       ...player,
       hand: player.id === playerId ? player.hand : [],
+      faceDown: player.id === playerId
+        ? player.faceDown
+        : (player.faceDown ?? []).map((_, index) => ({ id: `hidden-${player.id}-${index}` })),
       handCount: player.hand?.length ?? player.handCount ?? 0,
     })),
   }
@@ -164,40 +169,124 @@ export async function POST(request) {
     if (payload.action === 'play') {
       if (room.game_state?.swapping) return json({ message: 'Es geht los, sobald alle Spieler auf Fertig gedrückt haben.' }, 409)
       if (!['dealing', 'game'].includes(room.phase)) return json({ message: 'Das Spiel hat noch nicht begonnen.' }, 409)
+      if (room.game_state?.winnerId) return json({ message: 'Das Spiel ist bereits beendet.' }, 409)
       if (room.game_state?.currentPlayerId !== payload.playerId) return json({ message: 'Du bist nicht an der Reihe.' }, 403)
       const gamePlayers = room.game_state.players ?? []
       const currentIndex = gamePlayers.findIndex((player) => player.id === payload.playerId)
       if (currentIndex < 0) return json({ message: 'Spieler ist in diesem Spiel nicht vorhanden.' }, 403)
       const currentPlayer = gamePlayers[currentIndex]
-      const currentHand = currentPlayer.hand ?? []
-      const playedIndex = currentHand.findIndex((card) => card.id === payload.card?.id)
-      if (playedIndex < 0) return json({ message: 'Diese Karte ist nicht mehr in deiner Hand.' }, 409)
-      const remainingHand = currentHand.filter((_, index) => index !== playedIndex)
-      const drawPile = [...(room.game_state.drawPile ?? [])]
-      if (payload.card?.value !== 10) {
-        while (remainingHand.length < 3 && drawPile.length) remainingHand.push(drawPile.pop())
+      const zone = payload.zone ?? 'hand'
+      if (zone !== activeCardZone(currentPlayer)) return json({ message: 'Du musst zuerst deine Handkarten und danach deine offenen Karten spielen.' }, 409)
+      const zoneCards = [...(currentPlayer[zone] ?? [])]
+      const playedIndex = zoneCards.findIndex((card) => card.id === payload.cardId)
+      if (playedIndex < 0) return json({ message: 'Diese Karte ist nicht mehr verfügbar.' }, 409)
+      const card = zoneCards[playedIndex]
+      const discardPile = [...(room.game_state.discardPile ?? [])]
+      if (zone !== 'faceDown' && !canPlay(card, discardPile)) return json({ message: 'Diese Karte kannst du nicht legen.' }, 409)
+
+      if (zone !== 'faceDown' && !zoneCards.some((candidate) => canPlay(candidate, discardPile))) {
+        return json({ message: 'Du kannst keine Karte legen. Nimm den Ablagestapel auf.' }, 409)
       }
-      const updatedGamePlayers = gamePlayers.map((player, index) => index === currentIndex ? { ...player, hand: remainingHand } : player)
-      const nextPlayerIndex = (currentIndex + (payload.card?.value === 11 ? 2 : 1)) % gamePlayers.length
+
+      const drawPile = [...(room.game_state.drawPile ?? [])]
+      const isBlindPlayInvalid = zone === 'faceDown' && !canPlay(card, discardPile)
+      const updatedCurrentPlayer = { ...currentPlayer, [zone]: zoneCards.filter((_, index) => index !== playedIndex) }
+      if (isBlindPlayInvalid) {
+        updatedCurrentPlayer.hand = [...(updatedCurrentPlayer.hand ?? []), ...discardPile, card]
+      } else if (zone === 'hand') {
+        while (updatedCurrentPlayer.hand.length < 3 && drawPile.length) updatedCurrentPlayer.hand.push(drawPile.pop())
+        if (!updatedCurrentPlayer.hand.length && !drawPile.length && updatedCurrentPlayer.faceUp?.length) {
+          updatedCurrentPlayer.hand = [...updatedCurrentPlayer.faceUp]
+          updatedCurrentPlayer.faceUp = []
+        }
+      }
+      const updatedGamePlayers = gamePlayers.map((player, index) => index === currentIndex ? updatedCurrentPlayer : player)
+      const playerFinished = ['hand', 'faceUp', 'faceDown'].every((cardZone) => (updatedCurrentPlayer[cardZone] ?? []).length === 0)
+      const winnerId = playerFinished ? payload.playerId : null
+      const nextPlayerIndex = isBlindPlayInvalid
+        ? (currentIndex + 1) % gamePlayers.length
+        : card.value === 10
+          ? currentIndex
+          : (currentIndex + (card.value === 11 ? 2 : 1)) % gamePlayers.length
+      const nextDiscardPile = isBlindPlayInvalid
+        ? []
+        : card.value === 10
+          ? []
+          : [...discardPile, card]
       const gameState = {
-        discardPile: payload.card?.value === 10 ? [] : [...(room.game_state.discardPile ?? []), payload.card],
-        currentPlayerId: gamePlayers[nextPlayerIndex]?.id ?? payload.playerId,
-        handCounts: Object.fromEntries(updatedGamePlayers.map((player) => [player.id, player.hand.length])),
+        discardPile: nextDiscardPile,
+        currentPlayerId: winnerId ? payload.playerId : gamePlayers[nextPlayerIndex]?.id ?? payload.playerId,
+        handCounts: Object.fromEntries(updatedGamePlayers.map((player) => [player.id, player.hand?.length ?? 0])),
         players: updatedGamePlayers,
         drawPile,
-        lastAction: { type: 'play', playerId: payload.playerId, card: payload.card, at: new Date().toISOString() },
+        winnerId,
+        lastAction: { type: isBlindPlayInvalid ? 'pickup' : 'play', playerId: payload.playerId, at: new Date().toISOString() },
         revision: Number(room.game_state.revision ?? 0) + 1,
       }
-      const players = (payload.players ?? room.players).map((player) => ({ id: player.id, name: player.name, host: player.host, handCount: gameState.handCounts[player.id] ?? player.handCount ?? 3, lastSeen: new Date().toISOString() }))
+      const players = room.players.map((player) => ({
+        ...player,
+        handCount: gameState.handCounts[player.id] ?? player.handCount ?? 0,
+        lastSeen: new Date().toISOString(),
+      }))
       const saved = await sql`
         UPDATE shithad_rooms
-        SET phase = 'game', game_state = ${JSON.stringify(gameState)}::jsonb, players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes'
+        SET phase = ${winnerId ? 'finished' : 'game'}, game_state = ${JSON.stringify(gameState)}::jsonb, players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes'
         WHERE code = ${code}
           AND game_state->>'currentPlayerId' = ${payload.playerId}
           AND COALESCE((game_state->>'revision')::integer, 0) = ${Number(room.game_state.revision ?? 0)}
         RETURNING code
       `
       if (!saved.length) return json({ message: 'Der Spielstand wurde zwischenzeitlich aktualisiert. Bitte warte auf deinen nächsten Zug.' }, 409)
+      return json({
+        roomCode: code,
+        playerId: payload.playerId,
+        gameState: visibleGameState(gameState, payload.playerId),
+        players,
+        phase: winnerId ? 'finished' : 'game',
+        message: isBlindPlayInvalid ? 'Die verdeckte Karte war nicht spielbar. Du hast den Ablagestapel aufgenommen.' : undefined,
+      })
+    }
+    if (payload.action === 'pickup') {
+      if (!['dealing', 'game'].includes(room.phase) || room.game_state?.swapping) return json({ message: 'Das Spiel hat noch nicht begonnen.' }, 409)
+      if (room.game_state?.winnerId) return json({ message: 'Das Spiel ist bereits beendet.' }, 409)
+      if (room.game_state?.currentPlayerId !== payload.playerId) return json({ message: 'Du bist nicht an der Reihe.' }, 403)
+      const gamePlayers = room.game_state.players ?? []
+      const currentIndex = gamePlayers.findIndex((player) => player.id === payload.playerId)
+      const currentPlayer = gamePlayers[currentIndex]
+      if (!currentPlayer) return json({ message: 'Spieler ist in diesem Spiel nicht vorhanden.' }, 403)
+      const zone = activeCardZone(currentPlayer)
+      if (!['hand', 'faceUp'].includes(zone)) return json({ message: 'Verdeckte Karten musst du einzeln aufdecken.' }, 409)
+      const discardPile = [...(room.game_state.discardPile ?? [])]
+      if (!discardPile.length || (currentPlayer[zone] ?? []).some((card) => canPlay(card, discardPile))) {
+        return json({ message: 'Du musst eine spielbare Karte legen.' }, 409)
+      }
+      const updatedGamePlayers = gamePlayers.map((player, index) => index === currentIndex
+        ? { ...player, hand: [...(player.hand ?? []), ...discardPile] }
+        : player)
+      const nextPlayerIndex = (currentIndex + 1) % gamePlayers.length
+      const gameState = {
+        ...room.game_state,
+        players: updatedGamePlayers,
+        discardPile: [],
+        currentPlayerId: gamePlayers[nextPlayerIndex]?.id ?? payload.playerId,
+        handCounts: Object.fromEntries(updatedGamePlayers.map((player) => [player.id, player.hand?.length ?? 0])),
+        lastAction: { type: 'pickup', playerId: payload.playerId, at: new Date().toISOString() },
+        revision: Number(room.game_state.revision ?? 0) + 1,
+      }
+      const players = room.players.map((player) => ({
+        ...player,
+        handCount: gameState.handCounts[player.id] ?? player.handCount ?? 0,
+        lastSeen: new Date().toISOString(),
+      }))
+      const saved = await sql`
+        UPDATE shithad_rooms
+        SET game_state = ${JSON.stringify(gameState)}::jsonb, players = ${JSON.stringify(players)}::jsonb, expires_at = NOW() + INTERVAL '10 minutes'
+        WHERE code = ${code}
+          AND game_state->>'currentPlayerId' = ${payload.playerId}
+          AND COALESCE((game_state->>'revision')::integer, 0) = ${Number(room.game_state.revision ?? 0)}
+        RETURNING code
+      `
+      if (!saved.length) return json({ message: 'Der Spielstand wurde zwischenzeitlich aktualisiert. Bitte versuche es erneut.' }, 409)
       return json({ roomCode: code, playerId: payload.playerId, gameState: visibleGameState(gameState, payload.playerId), players, phase: 'game' })
     }
     if (!name) return json({ message: 'Bitte einen Namen eingeben.' }, 400)
