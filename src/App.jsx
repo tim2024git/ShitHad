@@ -515,8 +515,8 @@ function App() {
             </div>
             {animatingCard && <div className="played-card-animation"><Card rank={animatingCard.rank} suit={animatingCard.suit} /></div>}
 
-            <div className={`bottom-hand-area ${isTurn(playerIndex) ? 'is-turn' : ''}`}>
-              {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : 3).map((card, handIndex) => {
+            <div className={`bottom-hand-area ${player?.hand.length > 3 ? 'has-many-cards' : ''} ${isTurn(playerIndex) ? 'is-turn' : ''}`}>
+              {player && visibleCards(player.hand, phase === 'dealing' ? Math.max(0, Math.min(3, dealtCardsForPlayer(playerIndex) - 6)) : player.hand.length).map((card, handIndex) => {
                 const playable = isMyTurn && turnZone === 'hand' && canPlay(card, game.discardPile)
                 return <Card key={`hand-${card.id}`} {...card} onClick={playable ? () => playCard('hand', handIndex) : undefined} className={`${phase === 'dealing' ? 'dealing-card' : ''} ${swapClass(card)} ${playable ? 'playable' : ''}`} extraProps={swapCardProps('hand', card)} />
               })}
